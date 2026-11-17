@@ -4,11 +4,14 @@ import { Connection, ConnectionStore, describeConnection } from './config';
 import { ConnectionManager } from './connectionManager';
 import { RemoteFileSystemProvider } from './fileSystemProvider';
 import logger from './logger';
+import { MirrorManager } from './mirror';
 import { SCHEMES, errorMessage } from './remote';
 import { ConnectionEditor } from './ui/connectionEditor';
-import { ConnectionsView, EntryNode, Node, rootUri } from './ui/connectionsView';
+import { ConnectionsView, Node, rootUri } from './ui/connectionsView';
 
 const DEFAULT_ROOT_LABEL = '${label}';
+/** Appended to the default label, so remote folders are not confused with local mirrors. */
+const REMOTE_SUFFIX = ' (remote)';
 
 function supplant(template: string, props: Record<string, string>) {
   return template.replace(/\$\{([^{}]*)\}/g, (match, key) => props[key] ?? match);
@@ -21,8 +24,9 @@ export function activate(context: vscode.ExtensionContext) {
   const manager = new ConnectionManager(context, store, id => editConnection(store.get(id)));
   const provider = new RemoteFileSystemProvider(store, manager);
   const view = new ConnectionsView(store, manager);
+  const mirrors = new MirrorManager(context, store, provider);
 
-  context.subscriptions.push(store, manager, provider, view, { dispose: () => logger.dispose() });
+  context.subscriptions.push(store, manager, provider, view, mirrors, { dispose: () => logger.dispose() });
   for (const scheme of SCHEMES) {
     context.subscriptions.push(
       vscode.workspace.registerFileSystemProvider(scheme, provider, { isCaseSensitive: true })
@@ -53,35 +57,50 @@ export function activate(context: vscode.ExtensionContext) {
     return picked?.conn;
   }
 
-  function targetUri(node: Node | undefined, conn: Connection) {
-    return node instanceof EntryNode ? node.uri : rootUri(conn);
-  }
-
   async function addToWorkspace(node?: Node) {
     const conn = await pickConnection(node);
     if (!conn) {
       return;
     }
-    const uri = targetUri(node, conn);
+    const uri = rootUri(conn);
     const existing = vscode.workspace.getWorkspaceFolder(uri);
     if (existing && existing.uri.toString() === uri.toString()) {
       await vscode.commands.executeCommand('workbench.view.explorer');
       return;
     }
     const template = vscode.workspace.getConfiguration('remotefs').get<string>('rootLabel') || DEFAULT_ROOT_LABEL;
-    const isSubfolder = node instanceof EntryNode;
-    const remotePath = isSubfolder ? posix.join(conn.rootPath, node.uri.path) : conn.rootPath;
+    const remotePath = conn.rootPath;
     const folderName = posix.basename(remotePath) || remotePath || '/';
     const props = { label: conn.config.label || conn.name, name: conn.name, folderName, path: remotePath };
     let name = supplant(template, props);
-    if (isSubfolder && template === DEFAULT_ROOT_LABEL) {
-      name += ` — ${folderName}`;
+    if (template === DEFAULT_ROOT_LABEL) {
+      name += REMOTE_SUFFIX;
     }
     const count = vscode.workspace.workspaceFolders?.length ?? 0;
     // appending (instead of inserting first) keeps the current first folder and avoids an extension host restart
     if (!vscode.workspace.updateWorkspaceFolders(count, 0, { uri, name })) {
       vscode.window.showErrorMessage('Remote FS: could not add the folder to the workspace.');
     }
+  }
+
+  /** Removes the workspace folders that browse the given connections (local mirrors are kept). */
+  function removeFromWorkspace(connIds: string[]) {
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    const isGone = (f: vscode.WorkspaceFolder) =>
+      (SCHEMES as readonly string[]).includes(f.uri.scheme) && connIds.includes(f.uri.authority);
+    const first = folders.findIndex(isGone);
+    if (first < 0) {
+      return;
+    }
+    // a single call (multiple calls must wait for onDidChangeWorkspaceFolders); folders before
+    // `first` are untouched, so the first folder only changes when it is itself removed
+    const kept = folders.slice(first).filter(f => !isGone(f)).map(f => ({ uri: f.uri, name: f.name }));
+    vscode.workspace.updateWorkspaceFolders(first, folders.length - first, ...kept);
+  }
+
+  function disconnect(connIds: string[]) {
+    removeFromWorkspace(connIds);
+    connIds.forEach(id => manager.disconnect(id));
   }
 
   const commands: Record<string, (...args: any[]) => unknown> = {
@@ -91,16 +110,37 @@ export function activate(context: vscode.ExtensionContext) {
     'remotefs.openInNewWindow': async (node?: Node) => {
       const conn = await pickConnection(node);
       if (conn) {
-        await vscode.commands.executeCommand('vscode.openFolder', targetUri(node, conn), { forceNewWindow: true });
+        await vscode.commands.executeCommand('vscode.openFolder', rootUri(conn), { forceNewWindow: true });
       }
     },
 
     'remotefs.openInCurrentWindow': async (node?: Node) => {
       const conn = await pickConnection(node);
       if (conn) {
-        await vscode.commands.executeCommand('vscode.openFolder', targetUri(node, conn), { forceReuseWindow: true });
+        await vscode.commands.executeCommand('vscode.openFolder', rootUri(conn), { forceReuseWindow: true });
       }
     },
+
+    'remotefs.openMirror': async (target?: Node | vscode.Uri) => {
+      if (target instanceof vscode.Uri) {
+        // explorer context menu on an sftp:// / ftp:// folder
+        const conn = store.get(target.authority);
+        if (!conn) {
+          vscode.window.showErrorMessage(`Remote FS: unknown remote "${target.authority}".`);
+          return;
+        }
+        return mirrors.createMirror(conn, target.path || '/');
+      }
+      const conn = await pickConnection(target, 'Select the remote to mirror locally');
+      if (conn) {
+        await mirrors.createMirror(conn, '/');
+      }
+    },
+    'remotefs.syncMirror': (uri?: vscode.Uri) => mirrors.syncCommand(uri instanceof vscode.Uri ? uri : undefined),
+    'remotefs.downloadMirrorFolder': (uri?: vscode.Uri) =>
+      mirrors.downloadFolderCommand(uri instanceof vscode.Uri ? uri : undefined),
+    'remotefs.resolveMirrorConflicts': () => mirrors.resolveConflicts(),
+    'remotefs.unlinkMirror': (uri?: vscode.Uri) => mirrors.unlinkCommand(uri instanceof vscode.Uri ? uri : undefined),
 
     'remotefs.addConnection': () => editConnection(),
 
@@ -132,7 +172,7 @@ export function activate(context: vscode.ExtensionContext) {
       if (answer !== del) {
         return;
       }
-      manager.disconnect(conn.id);
+      disconnect([conn.id]);
       await store.delete(conn);
     },
 
@@ -163,11 +203,14 @@ export function activate(context: vscode.ExtensionContext) {
     'remotefs.disconnect': async (node?: Node) => {
       const conn = node?.conn ?? (await pickConnection(undefined, 'Select the connection to close'));
       if (conn) {
-        manager.disconnect(conn.id);
+        disconnect([conn.id]);
       }
     },
 
-    'remotefs.disconnectAll': () => manager.disconnectAll(),
+    'remotefs.disconnectAll': () => {
+      removeFromWorkspace(store.list().map(c => c.id));
+      manager.disconnectAll();
+    },
 
     'remotefs.forgetPassword': async (node?: Node) => {
       const conn = await pickConnection(node);

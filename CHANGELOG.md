@@ -1,10 +1,11 @@
 ## 0.1.0 - 2026-11-17
 * Requires VS Code 1.90+. Rewritten on current APIs (`@types/vscode`, LogOutputChannel, SecretStorage, workspace trust).
-* New **Remote FS** Activity Bar view: manage connections from a form, test them, browse remote files, connection status.
+* New **Remote FS** Activity Bar view: manage connections from a form, test them, connection status, inline buttons to add a connection to the workspace or open its local mirror.
 * Passwords/passphrases stored in the OS keychain; plain-text passwords are moved there when the connection is edited.
 * SSH host key verification (trust on first use).
 * ssh2 1.x: modern algorithms (rsa-sha2-256/512, ed25519, curve25519), works with OpenSSH 8.8+.
 * FTP client replaced (`jsftp` → `basic-ftp`), new `ftps` scheme (explicit/implicit TLS).
+* **Local mirror**: a remote folder mirrored to a local folder, downloaded on demand (folders are downloaded when expanded in the Explorer or requested by an agent through a trigger file) and kept in sync both ways (watcher-based upload, conflict detection with diff, confirmation for mass deletions), so AI agents like Claude Code and command-line tools can work on remote projects. Settings under `remotefs.mirror.*`.
 * Workspace folders are labelled with the connection name by default (`remotefs.rootLabel` = `${label}`).
 * Relative `rootPath` (`~/www`), `~`/`$ENV` expansion in key and agent paths.
 * Automatic reconnection when a connection drops; connections are closed when their settings change.

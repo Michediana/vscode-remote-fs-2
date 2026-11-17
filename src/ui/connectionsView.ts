@@ -1,4 +1,3 @@
-import { posix } from 'path';
 import * as vscode from 'vscode';
 import { Connection, ConnectionStore, describeConnection } from '../config';
 import { ConnectionManager } from '../connectionManager';
@@ -15,15 +14,7 @@ export class ConnectionNode {
   }
 }
 
-export class EntryNode {
-  readonly kind = 'entry';
-  constructor(readonly conn: Connection, readonly uri: vscode.Uri, readonly type: vscode.FileType) {}
-  get isDirectory() {
-    return (this.type & vscode.FileType.Directory) !== 0;
-  }
-}
-
-export type Node = ConnectionNode | EntryNode;
+export type Node = ConnectionNode;
 
 export class ConnectionsView implements vscode.TreeDataProvider<Node>, vscode.Disposable {
   private readonly _onDidChangeTreeData = new vscode.EventEmitter<Node | undefined>();
@@ -34,7 +25,6 @@ export class ConnectionsView implements vscode.TreeDataProvider<Node>, vscode.Di
   constructor(private readonly store: ConnectionStore, private readonly manager: ConnectionManager) {
     this.treeView = vscode.window.createTreeView('remotefs.connections', {
       treeDataProvider: this,
-      showCollapseAll: true,
     });
     this.disposables.push(
       this.treeView,
@@ -52,33 +42,14 @@ export class ConnectionsView implements vscode.TreeDataProvider<Node>, vscode.Di
   }
 
   getTreeItem(node: Node): vscode.TreeItem {
-    if (node instanceof ConnectionNode) {
-      return this.connectionItem(node);
-    }
-    const name = posix.basename(node.uri.path);
-    const item = new vscode.TreeItem(
-      name,
-      node.isDirectory ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None
-    );
-    item.id = `entry:${this.manager.session(node.conn.id)}:${node.uri.toString()}`;
-    item.resourceUri = node.uri;
-    item.contextValue = node.isDirectory ? 'remotefs.dir' : 'remotefs.file';
-    if (node.type & vscode.FileType.SymbolicLink) {
-      item.description = '↪';
-    }
-    if (!node.isDirectory) {
-      item.command = { command: 'vscode.open', title: 'Open', arguments: [node.uri] };
-    }
-    return item;
+    return this.connectionItem(node);
   }
 
   private connectionItem(node: ConnectionNode): vscode.TreeItem {
     const { conn } = node;
     const state = this.manager.getState(conn.id);
-    const item = new vscode.TreeItem(conn.config.label || conn.name, vscode.TreeItemCollapsibleState.Collapsed);
-    // A new id after a manual disconnect makes VS Code show the node collapsed, so the
-    // refresh does not immediately re-read (and reconnect) an expanded connection.
-    item.id = `connection:${conn.id}:${this.manager.session(conn.id)}`;
+    const item = new vscode.TreeItem(conn.config.label || conn.name, vscode.TreeItemCollapsibleState.None);
+    item.id = `connection:${conn.id}`;
     item.description = describeConnection(conn);
     item.contextValue = state.status === 'connected' ? 'remotefs.connection.connected' : 'remotefs.connection.idle';
 
@@ -109,39 +80,12 @@ export class ConnectionsView implements vscode.TreeDataProvider<Node>, vscode.Di
     return item;
   }
 
-  getParent(node: Node): Node | undefined {
-    if (node instanceof ConnectionNode) {
-      return undefined;
-    }
-    const parentPath = posix.dirname(node.uri.path);
-    if (parentPath === node.uri.path || parentPath === '/') {
-      return new ConnectionNode(node.conn);
-    }
-    return new EntryNode(node.conn, node.uri.with({ path: parentPath }), vscode.FileType.Directory);
+  getParent(): Node | undefined {
+    return undefined;
   }
 
-  async getChildren(node?: Node): Promise<Node[]> {
-    if (!node) {
-      return this.store.list().map(c => new ConnectionNode(c));
-    }
-    if (node instanceof EntryNode && !node.isDirectory) {
-      return [];
-    }
-    try {
-      const entries = await vscode.workspace.fs.readDirectory(node.uri);
-      return entries
-        .sort(([an, at], [bn, bt]) => {
-          const ad = at & vscode.FileType.Directory ? 0 : 1;
-          const bd = bt & vscode.FileType.Directory ? 0 : 1;
-          return ad - bd || an.localeCompare(bn);
-        })
-        .map(
-          ([name, type]) =>
-            new EntryNode(node.conn, node.uri.with({ path: posix.join(node.uri.path, name) }), type)
-        );
-    } catch {
-      // connection errors are already reported by the ConnectionManager
-      return [];
-    }
+  getChildren(node?: Node): Node[] {
+    // only the connections: their files are browsed in the Explorer (workspace folder or local mirror)
+    return node ? [] : this.store.list().map(c => new ConnectionNode(c));
   }
 }

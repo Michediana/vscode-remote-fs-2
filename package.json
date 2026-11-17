@@ -29,7 +29,8 @@
   "activationEvents": [
     "onFileSystem:sftp",
     "onFileSystem:ftp",
-    "onFileSystem:ftps"
+    "onFileSystem:ftps",
+    "onStartupFinished"
   ],
   "capabilities": {
     "untrustedWorkspaces": {
@@ -47,7 +48,7 @@
         {
           "id": "remotefs",
           "title": "Remote FS",
-          "icon": "$(remote-explorer)"
+          "icon": "$(server-environment)"
         }
       ]
     },
@@ -56,7 +57,7 @@
         {
           "id": "remotefs.connections",
           "name": "Connections",
-          "icon": "$(remote-explorer)",
+          "icon": "$(server-environment)",
           "contextualTitle": "Remote FS"
         }
       ]
@@ -73,6 +74,34 @@
         "title": "Add Folder to Workspace",
         "category": "Remote FS",
         "icon": "$(add)"
+      },
+      {
+        "command": "remotefs.openMirror",
+        "title": "Open Local Mirror (for AI agents)",
+        "category": "Remote FS",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "remotefs.downloadMirrorFolder",
+        "title": "Download Folder from Server",
+        "category": "Remote FS",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "remotefs.syncMirror",
+        "title": "Sync Local Mirror Now",
+        "category": "Remote FS",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "remotefs.resolveMirrorConflicts",
+        "title": "Resolve Local Mirror Conflicts",
+        "category": "Remote FS"
+      },
+      {
+        "command": "remotefs.unlinkMirror",
+        "title": "Stop Syncing Local Mirror",
+        "category": "Remote FS"
       },
       {
         "command": "remotefs.addConnection",
@@ -191,14 +220,19 @@
           "group": "inline@1"
         },
         {
-          "command": "remotefs.editConnection",
+          "command": "remotefs.openMirror",
           "when": "view == remotefs.connections && viewItem =~ /^remotefs\\.connection/",
           "group": "inline@2"
         },
         {
+          "command": "remotefs.editConnection",
+          "when": "view == remotefs.connections && viewItem =~ /^remotefs\\.connection/",
+          "group": "inline@3"
+        },
+        {
           "command": "remotefs.disconnect",
           "when": "view == remotefs.connections && viewItem == remotefs.connection.connected",
-          "group": "inline@3"
+          "group": "inline@4"
         },
         {
           "command": "remotefs.openInWorkspace",
@@ -209,6 +243,11 @@
           "command": "remotefs.openInNewWindow",
           "when": "view == remotefs.connections && viewItem =~ /^remotefs\\.connection/",
           "group": "1_open@2"
+        },
+        {
+          "command": "remotefs.openMirror",
+          "when": "view == remotefs.connections && viewItem =~ /^remotefs\\.connection/",
+          "group": "1_open@4"
         },
         {
           "command": "remotefs.openInCurrentWindow",
@@ -259,6 +298,23 @@
           "command": "remotefs.duplicateConnection",
           "when": "false"
         }
+      ],
+      "explorer/context": [
+        {
+          "command": "remotefs.openMirror",
+          "when": "explorerResourceIsFolder && resourceScheme =~ /^(s?ftp|ftps)$/",
+          "group": "remotefs@1"
+        },
+        {
+          "command": "remotefs.downloadMirrorFolder",
+          "when": "explorerResourceIsFolder && resourceScheme == file && remotefs.hasMirror",
+          "group": "remotefs@2"
+        },
+        {
+          "command": "remotefs.syncMirror",
+          "when": "explorerResourceIsRoot && resourceScheme == file && remotefs.hasMirror",
+          "group": "remotefs@2"
+        }
       ]
     },
     "configuration": {
@@ -267,7 +323,7 @@
       "properties": {
         "remotefs.rootLabel": {
           "type": "string",
-          "markdownDescription": "Label of the workspace folder added for a remote. When a subfolder is added, ` — <folder>` is appended to the default label.\n- `${label}`: display label of the connection (falls back to its name).\n- `${name}`: name of the connection.\n- `${folderName}`: last segment of the remote folder.\n- `${path}`: full remote path of the folder.",
+          "markdownDescription": "Label of the workspace folder added for a remote. With the default label, ` — <folder>` is appended for a subfolder and ` (remote)` always, to tell it apart from local mirrors (labelled ` (local mirror)`).\n- `${label}`: display label of the connection (falls back to its name).\n- `${name}`: name of the connection.\n- `${folderName}`: last segment of the remote folder.\n- `${path}`: full remote path of the folder.",
           "default": "${label}"
         },
         "remotefs.remote": {
@@ -363,6 +419,36 @@
               }
             }
           }
+        },
+        "remotefs.mirror.baseFolder": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Folder where local mirrors are created by default (`<baseFolder>/<connection>/<remote path>`). Empty = `~/RemoteFS`."
+        },
+        "remotefs.mirror.exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            ".git",
+            "node_modules",
+            ".DS_Store",
+            "Thumbs.db"
+          ],
+          "markdownDescription": "Paths never synced by local mirrors. A pattern without `/` matches a name at any depth (`*.log`, `cache`); a pattern with `/` is relative to the mirror root (`wp-content/uploads`). `*`, `?` and `**` are supported."
+        },
+        "remotefs.mirror.maxFileSizeMB": {
+          "type": "number",
+          "default": 50,
+          "minimum": 0,
+          "markdownDescription": "Files larger than this are not synced by local mirrors. `0` = no limit."
+        },
+        "remotefs.mirror.autoSyncInterval": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "markdownDescription": "Seconds between automatic syncs that also download changes made on the server in the folders already opened (minimum 30). `0` = only when the mirror is opened and on **Sync Local Mirror Now**. Local changes are always uploaded immediately."
         }
       }
     }

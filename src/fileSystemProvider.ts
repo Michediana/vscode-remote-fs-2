@@ -86,18 +86,14 @@ export class RemoteFileSystemProvider implements vscode.FileSystemProvider, vsco
   }
 
   /**
-   * Runs an operation with a live client. If the connection dropped in the
-   * meantime the operation is retried once on a fresh connection.
+   * Runs an operation with a live client and the absolute remote path of `uri`.
+   * If the connection dropped in the meantime the operation is retried once on
+   * a fresh connection. Errors are passed through unchanged (RemoteError).
    */
-  private async run<T>(uri: vscode.Uri, op: (client: RemoteClient, path: string) => Promise<T>): Promise<T> {
+  async withClient<T>(uri: vscode.Uri, op: (client: RemoteClient, path: string) => Promise<T>): Promise<T> {
     const conn = this.connectionFor(uri);
     for (let attempt = 0; ; attempt++) {
-      let client: RemoteClient;
-      try {
-        client = await this.manager.getClient(conn);
-      } catch (err) {
-        throw toFsError(err, uri);
-      }
+      const client = await this.manager.getClient(conn);
       try {
         return await op(client, await this.remotePath(conn, client, uri));
       } catch (err) {
@@ -105,9 +101,18 @@ export class RemoteFileSystemProvider implements vscode.FileSystemProvider, vsco
           logger.info(`Connection to ${conn.name} lost, reconnecting`);
           continue;
         }
-        logger.debug(`${uri.toString(true)}: ${errorMessage(err)}`);
-        throw toFsError(err, uri);
+        throw err;
       }
+    }
+  }
+
+  /** Same as withClient, with errors converted to FileSystemError. */
+  private async run<T>(uri: vscode.Uri, op: (client: RemoteClient, path: string) => Promise<T>): Promise<T> {
+    try {
+      return await this.withClient(uri, op);
+    } catch (err) {
+      logger.debug(`${uri.toString(true)}: ${errorMessage(err)}`);
+      throw toFsError(err, uri);
     }
   }
 
