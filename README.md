@@ -88,6 +88,16 @@ Connections live in the `remotefs.remote` setting (user settings by default, wor
 
 `remotefs.rootLabel` sets the workspace folder label. Default `${label}` (the connection label, or its name, followed by ` (remote)` so it is not confused with a local mirror, which is labelled ` (Local Mirror)`); variables: `${label}`, `${name}`, `${folderName}`, `${path}`.
 
+### Sharing connections
+
+**Export Connections…** (view `…` menu, or right-click a connection) writes the selected connections to a JSON file; a colleague loads it with **Import Connections…**. Passwords and key passphrases can be:
+
+* **encrypted** (recommended): AES-256-GCM with a key derived (scrypt) from a passphrase you choose — send the passphrase over a different channel than the file;
+* **left out**: the recipient enters the credentials on the first connection;
+* **in plain text**: only over a secure channel, delete the file afterwards.
+
+On import you choose which connections to load, what to do with names that already exist (overwrite, keep both, skip) and whether to save them in user or workspace settings. Imported passwords go to the OS keychain, never to `settings.json`. A `privateKeyPath` that does not exist on the importing computer is reported, so it can be changed.
+
 ## Local mirror (AI agents, terminal, git)
 
 `sftp://` / `ftp://` workspace folders exist only inside VS Code: AI agents and anything else that reads the disk or runs shell commands cannot see them. A **local mirror** solves this: the remote folder is mirrored to a normal local folder, **downloaded on demand**, and every change made there — by you, by an AI agent, by a script — is uploaded to the server automatically.
@@ -120,7 +130,7 @@ How it stays in sync:
 
 ## Commands
 
-All available from the Command Palette under **Remote FS 2**: Add / Edit / Delete Connection, Add Folder to Workspace, Open in New Window, Open Local Mirror, Download Folder from Server, Sync Local Mirror Now, Resolve Local Mirror Conflicts, Stop Syncing Local Mirror, Test Connection, Disconnect, Disconnect All, Forget Saved Password, Refresh, Edit Connections in settings.json, Show Log.
+All available from the Command Palette under **Remote FS 2**: Add / Edit / Delete Connection, Export / Import Connections, Add Folder to Workspace, Open in New Window, Open Local Mirror, Download Folder from Server, Sync Local Mirror Now, Resolve Local Mirror Conflicts, Stop Syncing Local Mirror, Test Connection, Disconnect, Disconnect All, Forget Saved Password, Refresh, Edit Connections in settings.json, Show Log.
 
 Remote servers cannot notify changes: use **Refresh** to reload folders changed by others.
 

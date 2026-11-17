@@ -140,10 +140,15 @@ export class ConnectionStore implements vscode.Disposable {
 
   /**
    * Creates or updates a connection. When `previous` is given the entry is
-   * replaced in the settings layer it came from (supports renaming).
+   * replaced in the settings layer it came from (supports renaming);
+   * otherwise it is written to `target` (user settings by default).
    */
-  async save(name: string, config: ConnectionConfig, previous?: Connection): Promise<Connection> {
-    const target = previous?.target ?? vscode.ConfigurationTarget.Global;
+  async save(
+    name: string,
+    config: ConnectionConfig,
+    previous?: Connection,
+    target: vscode.ConfigurationTarget = previous?.target ?? vscode.ConfigurationTarget.Global
+  ): Promise<Connection> {
     const clean = Object.fromEntries(
       Object.entries(config).filter(([, v]) => v !== undefined && v !== '')
     ) as unknown as ConnectionConfig;

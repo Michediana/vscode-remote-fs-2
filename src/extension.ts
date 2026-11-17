@@ -8,6 +8,7 @@ import { MirrorManager } from './mirror';
 import { SCHEMES, errorMessage } from './remote';
 import { ConnectionEditor } from './ui/connectionEditor';
 import { ConnectionsView, Node, rootUri } from './ui/connectionsView';
+import { exportConnections, importConnections } from './ui/transferCommands';
 
 const DEFAULT_ROOT_LABEL = '${label}';
 /** Appended to the default label, so remote folders are not confused with local mirrors. */
@@ -227,6 +228,9 @@ export function activate(context: vscode.ExtensionContext) {
       disconnect([conn.id]);
       await store.delete(conn);
     },
+
+    'remotefs.exportConnections': (node?: Node) => exportConnections(store, node?.conn.id),
+    'remotefs.importConnections': () => importConnections(store),
 
     'remotefs.testConnection': async (node?: Node) => {
       const conn = await pickConnection(node, 'Select the connection to test');
