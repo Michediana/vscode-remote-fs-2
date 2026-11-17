@@ -28,7 +28,7 @@ const test = (name, fn) => tests.push({ name, fn });
 let root, server, base;
 
 test('extension activates and registers commands', async () => {
-  const ext = vscode.extensions.getExtension('liximomo.remotefs');
+  const ext = vscode.extensions.getExtension('michediana.remotefs-2');
   assert.ok(ext, 'extension found');
   await ext.activate();
   const cmds = await vscode.commands.getCommands(true);
