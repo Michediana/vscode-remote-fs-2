@@ -235,5 +235,9 @@
   "Refresh Remote Folders": "Aggiorna cartelle remote",
   "Connections": "Connessioni",
   "Disconnect {0}": "Disconnetti {0}",
-  "Connect {0}": "Connetti {0}"
+  "Connect {0}": "Connetti {0}",
+  "Search Connections": "Cerca connessioni",
+  "Filter by name, host, user or path": "Filtra per nome, host, utente o percorso",
+  "No connections match \"{0}\"": "Nessuna connessione corrisponde a \"{0}\"",
+  "Filter: \"{0}\" ({1} of {2})": "Filtro: \"{0}\" ({1} di {2})"
 }

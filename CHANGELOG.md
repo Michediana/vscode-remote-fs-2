@@ -1,3 +1,6 @@
+## 0.3.2 - 2026-11-17
+* Search in the list of connections: magnifier button in the title bar of the Remote FS 2 view (and command `Remote FS 2: Search Connections…`) filters the connections while typing, by name, label, host, user, port or path (every word must match). The view shows how many connections match; `Clear Search` removes the filter.
+
 ## 0.3.1 - 2026-11-17
 * Gear button in the title bar of the Remote FS 2 view (and command `Remote FS 2: Open Settings`): opens the settings of the extension.
 

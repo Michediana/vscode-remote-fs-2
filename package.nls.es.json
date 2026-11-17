@@ -23,6 +23,8 @@
   "command.disconnectAll": "Desconectar todo",
   "command.forgetPassword": "Olvidar contraseña guardada",
   "command.refresh": "Actualizar",
+  "command.searchConnections": "Buscar conexiones…",
+  "command.clearSearch": "Borrar búsqueda",
   "command.exportConnections": "Exportar conexiones…",
   "command.importConnections": "Importar conexiones…",
   "command.openSettingsJson": "Editar conexiones en settings.json",

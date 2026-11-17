@@ -386,6 +386,10 @@ export function activate(context: vscode.ExtensionContext) {
       }),
 
     'remotefs.showLog': () => logger.show(),
+
+    'remotefs.searchConnections': () => view.promptFilter(),
+
+    'remotefs.clearSearch': () => view.setFilter(''),
   };
 
   for (const [id, handler] of Object.entries(commands)) {

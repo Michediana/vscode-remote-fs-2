@@ -21,6 +21,7 @@ export class ConnectionsView implements vscode.TreeDataProvider<Node>, vscode.Di
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
   private readonly disposables: vscode.Disposable[] = [this._onDidChangeTreeData];
   readonly treeView: vscode.TreeView<Node>;
+  private filter = '';
 
   constructor(private readonly store: ConnectionStore, private readonly manager: ConnectionManager) {
     this.treeView = vscode.window.createTreeView('remotefs.connections', {
@@ -28,7 +29,10 @@ export class ConnectionsView implements vscode.TreeDataProvider<Node>, vscode.Di
     });
     this.disposables.push(
       this.treeView,
-      store.onDidChange(() => this.refresh()),
+      store.onDidChange(() => {
+        this.updateMessage();
+        this.refresh();
+      }),
       manager.onDidChangeState(() => this.refresh())
     );
   }
@@ -39,6 +43,64 @@ export class ConnectionsView implements vscode.TreeDataProvider<Node>, vscode.Di
 
   refresh() {
     this._onDidChangeTreeData.fire(undefined);
+  }
+
+  /** Shows an input box that filters the connections while typing. */
+  async promptFilter() {
+    const previous = this.filter;
+    const input = vscode.window.createInputBox();
+    input.title = vscode.l10n.t('Search Connections');
+    input.placeholder = vscode.l10n.t('Filter by name, host, user or path');
+    input.value = this.filter;
+    let accepted = false;
+    const done = new Promise<void>(resolve => {
+      input.onDidChangeValue(value => this.setFilter(value));
+      input.onDidAccept(() => {
+        accepted = true;
+        input.hide();
+      });
+      input.onDidHide(() => {
+        if (!accepted) {
+          this.setFilter(previous);
+        }
+        input.dispose();
+        resolve();
+      });
+    });
+    input.show();
+    await done;
+  }
+
+  setFilter(value: string) {
+    this.filter = value.trim();
+    void vscode.commands.executeCommand('setContext', 'remotefs.connectionsFiltered', this.filter !== '');
+    this.updateMessage();
+    this.refresh();
+  }
+
+  private matches(conn: Connection) {
+    if (!this.filter) {
+      return true;
+    }
+    const haystack = [conn.name, conn.config.label ?? '', describeConnection(conn)].join('\n').toLowerCase();
+    // every word must match somewhere (name, label, scheme://user@host:port/path)
+    return this.filter
+      .toLowerCase()
+      .split(/\s+/)
+      .every(term => haystack.includes(term));
+  }
+
+  private updateMessage() {
+    if (!this.filter) {
+      this.treeView.message = undefined;
+      return;
+    }
+    const total = this.store.list().length;
+    const shown = this.store.list().filter(c => this.matches(c)).length;
+    this.treeView.message =
+      shown === 0
+        ? vscode.l10n.t('No connections match "{0}"', this.filter)
+        : vscode.l10n.t('Filter: "{0}" ({1} of {2})', this.filter, shown, total);
   }
 
   getTreeItem(node: Node): vscode.TreeItem {
@@ -93,6 +155,9 @@ export class ConnectionsView implements vscode.TreeDataProvider<Node>, vscode.Di
 
   getChildren(node?: Node): Node[] {
     // only the connections: their files are browsed in the Explorer (workspace folder or local mirror)
-    return node ? [] : this.store.list().map(c => new ConnectionNode(c));
+    return node ? [] : this.store
+          .list()
+          .filter(c => this.matches(c))
+          .map(c => new ConnectionNode(c));
   }
 }

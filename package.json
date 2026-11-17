@@ -2,7 +2,7 @@
   "name": "remotefs-2",
   "displayName": "Remote FS 2",
   "description": "%description%",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "publisher": "michediana",
   "author": "Michele Diana",
   "license": "MIT",
@@ -66,7 +66,8 @@
     "viewsWelcome": [
       {
         "view": "remotefs.connections",
-        "contents": "%view.connections.welcome%"
+        "contents": "%view.connections.welcome%",
+        "when": "!remotefs.connectionsFiltered"
       }
     ],
     "commands": [
@@ -180,6 +181,18 @@
         "category": "Remote FS 2"
       },
       {
+        "command": "remotefs.searchConnections",
+        "title": "%command.searchConnections%",
+        "category": "Remote FS 2",
+        "icon": "$(search)"
+      },
+      {
+        "command": "remotefs.clearSearch",
+        "title": "%command.clearSearch%",
+        "category": "Remote FS 2",
+        "icon": "$(clear-all)"
+      },
+      {
         "command": "remotefs.refresh",
         "title": "%command.refresh%",
         "category": "Remote FS 2",
@@ -212,6 +225,16 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "remotefs.searchConnections",
+          "when": "view == remotefs.connections && !remotefs.connectionsFiltered",
+          "group": "navigation@-1"
+        },
+        {
+          "command": "remotefs.clearSearch",
+          "when": "view == remotefs.connections && remotefs.connectionsFiltered",
+          "group": "navigation@-1"
+        },
         {
           "command": "remotefs.openSettings",
           "when": "view == remotefs.connections",
@@ -331,6 +354,10 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "remotefs.clearSearch",
+          "when": "remotefs.connectionsFiltered"
+        },
         {
           "command": "remotefs.openInWorkspace",
           "when": "false"
