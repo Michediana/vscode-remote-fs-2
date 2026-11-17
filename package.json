@@ -2,7 +2,7 @@
   "name": "remotefs",
   "displayName": "Remote FS 2",
   "description": "Work with files on SFTP/FTP servers as if they were local, with a connection manager UI.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "michediana",
   "author": "Michele Diana",
   "license": "MIT",

@@ -156,20 +156,37 @@ export function activate(context: vscode.ExtensionContext) {
   // attempts…); a failed read leaves the folder empty until a manual refresh. Re-read the
   // folders of a connection as soon as it is up again after such failures.
   const lastAutoRefresh = new Map<string, number>();
+  const scheduledRefresh = new Map<string, NodeJS.Timeout>();
+  const autoRefresh = (id: string) => {
+    if (scheduledRefresh.has(id)) {
+      return;
+    }
+    // at least 5 s apart, so a connection that keeps dropping cannot cause a refresh storm;
+    // a refresh asked too early is postponed, never dropped
+    const wait = Math.max(300, (lastAutoRefresh.get(id) ?? 0) + 5_000 - Date.now());
+    scheduledRefresh.set(
+      id,
+      setTimeout(() => {
+        scheduledRefresh.delete(id);
+        lastAutoRefresh.set(id, Date.now());
+        const folders = remoteFolders(id);
+        if (folders.length) {
+          logger.info(`Reloading the workspace folders of ${id} after the connection was restored`);
+          folders.forEach(f => provider.refresh(f.uri));
+        }
+      }, wait)
+    );
+  };
   context.subscriptions.push(
+    { dispose: () => scheduledRefresh.forEach(t => clearTimeout(t)) },
     manager.onDidChangeState(id => {
       if (manager.getState(id).status !== 'connected' || !provider.takeUnavailable(id)) {
         return;
       }
       activity.clearError(id);
-      const folders = remoteFolders(id);
-      // at most every 10 s, so a connection that keeps dropping cannot cause a refresh loop
-      if (!folders.length || Date.now() - (lastAutoRefresh.get(id) ?? 0) < 10_000) {
-        return;
+      if (remoteFolders(id).length) {
+        autoRefresh(id);
       }
-      lastAutoRefresh.set(id, Date.now());
-      logger.info(`Reloading the workspace folders of ${id} after the connection was restored`);
-      setTimeout(() => folders.forEach(f => provider.refresh(f.uri)), 300);
     })
   );
 

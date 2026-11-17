@@ -1,3 +1,7 @@
+## 0.2.1 - 2026-11-17
+* FTP: servers that close the data connection with a reset instead of a normal close (IIS and others) no longer drop the whole connection after every listing or download. That was why remote folders sometimes stayed empty when a workspace was opened ("read ECONNRESET (data socket)" in the log). The reply of the server still decides whether a transfer succeeded.
+* Remote workspace folders are reloaded again whenever their connection comes back after failed reads (a reload asked too early is postponed instead of skipped).
+
 ## 0.2.0 - 2026-11-17
 * Remote workspace folders load by themselves when a workspace is opened: the connections are made at startup and the folders are re-read as soon as a connection is restored after failed reads (no more manual Refresh).
 * FTP: a file inside a missing folder (e.g. `.vscode/settings.json`, probed by VS Code on startup) is no longer looked up by listing that folder, which made some servers drop the connection over and over. The reason of an unexpected disconnection is now written to the log.

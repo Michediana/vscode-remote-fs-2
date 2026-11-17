@@ -1,4 +1,5 @@
 import { posix } from 'path';
+import { Socket } from 'net';
 import { PassThrough, Readable, Writable } from 'stream';
 import { Client, FileInfo, FileType, FTPError } from 'basic-ftp';
 import { SerialQueue } from './queue';
@@ -51,6 +52,47 @@ function toRemoteError(err: unknown, path?: string): RemoteError {
   return new RemoteError('EOTHER', `${where}${msg}`, err);
 }
 
+/**
+ * Some servers (IIS among others) close the data connection with a TCP reset instead of a
+ * normal close once a listing or download has been sent. basic-ftp treats any data socket
+ * error as fatal and closes the whole client, so every operation in the queue fails. A reset
+ * on the data socket is turned into a normal end of data instead: the reply on the control
+ * connection (226 transfer complete, 426 aborted…) still decides whether the transfer succeeded.
+ */
+function tolerateDataReset(ftp: Client, onReset: () => void) {
+  const ctx = ftp.ftp;
+  const proto = Object.getPrototypeOf(ctx);
+  const desc = Object.getOwnPropertyDescriptor(proto, 'dataSocket');
+  if (!desc?.get || !desc.set) {
+    return; // basic-ftp internals changed: keep its default behaviour
+  }
+  Object.defineProperty(ctx, 'dataSocket', {
+    configurable: true,
+    get() {
+      return desc.get!.call(this);
+    },
+    set(socket: Socket | undefined) {
+      if (socket) {
+        const destroy = socket.destroy.bind(socket);
+        socket.destroy = ((err?: Error) => {
+          if ((err as NodeJS.ErrnoException | undefined)?.code !== 'ECONNRESET' || socket.readableEnded) {
+            return destroy(err);
+          }
+          onReset();
+          socket.destroy = destroy;
+          // deliver what was received, then end the stream as if the server had closed it
+          socket.push(null);
+          socket.once('end', () => destroy());
+          // nobody is reading (e.g. an upload): report the reset as basic-ftp would
+          setTimeout(() => destroy(err), 2000).unref?.();
+          return socket;
+        }) as typeof socket.destroy;
+      }
+      desc.set!.call(this, socket);
+    },
+  });
+}
+
 function kindOf(info: FileInfo): EntryKind {
   switch (info.type) {
     case FileType.Directory:
@@ -82,8 +124,11 @@ export class FtpClient implements RemoteClient {
   private readonly knownDirs = new Set<string>(['/']);
   private keepAlive?: NodeJS.Timeout;
   private _closed = false;
+  /** Data connections the server reset (tolerated, see tolerateDataReset). */
+  dataResets = 0;
 
   private constructor(private readonly ftp: Client) {
+    tolerateDataReset(ftp, () => this.dataResets++);
     this.keepAlive = setInterval(() => {
       if (this.queue.idle) {
         this.run(() => this.ftp.send('NOOP')).catch(() => undefined);

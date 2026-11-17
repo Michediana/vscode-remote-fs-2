@@ -264,3 +264,113 @@ describe('ftp specifics', () => {
     }
   });
 });
+
+/**
+ * Minimal FTP server that ends every data connection with a TCP reset (as IIS and some
+ * other servers do) and then reports the transfer as complete on the control connection.
+ */
+function startResettingFtpServer(files) {
+  const servers = [];
+  const control = net.createServer(sock => {
+    let dataSocket; // promise of the passive data connection
+    const reply = line => sock.write(line + '\r\n');
+    reply('220 test');
+    sock.on('error', () => undefined);
+    sock.on('data', buf => {
+      for (const line of buf.toString().split('\r\n').filter(Boolean)) {
+        const [cmd, ...rest] = line.split(' ');
+        const arg = rest.join(' ');
+        switch (cmd.toUpperCase()) {
+          case 'USER':
+            reply('331 password');
+            break;
+          case 'PASS':
+            reply('230 logged in');
+            break;
+          case 'EPSV':
+          case 'PASV': {
+            let accept;
+            dataSocket = new Promise(r => (accept = r));
+            const data = net.createServer(ds => {
+              ds.on('error', () => undefined);
+              accept(ds);
+            });
+            servers.push(data);
+            data.listen(0, '127.0.0.1', () => {
+              const port = data.address().port;
+              reply(cmd.toUpperCase() === 'EPSV'
+                ? `229 Entering Extended Passive Mode (|||${port}|)`
+                : `227 Entering Passive Mode (127,0,0,1,${port >> 8},${port & 255})`);
+            });
+            break;
+          }
+          case 'LIST':
+          case 'RETR': {
+            const name = cmd.toUpperCase() === 'RETR' ? arg.replace(/^\//, '') : undefined;
+            if (name !== undefined && !(name in files)) {
+              reply('550 not found');
+              break;
+            }
+            const payload = name !== undefined
+              ? files[name]
+              : Object.entries(files)
+                  .map(([n, c]) => `-rw-r--r--   1 user group ${String(c.length).padStart(8)} Jan 01 2024 ${n}`)
+                  .join('\r\n') + '\r\n';
+            dataSocket.then(ds => {
+              reply('150 opening data connection');
+              ds.write(payload, () => setTimeout(() => {
+                ds.resetAndDestroy();
+                setTimeout(() => reply('226 transfer complete'), 20);
+              }, 30));
+            });
+            break;
+          }
+          case 'MLSD':
+          case 'MLST':
+            reply('500 not supported');
+            break;
+          case 'QUIT':
+            reply('221 bye');
+            sock.end();
+            break;
+          default:
+            reply('200 ok');
+        }
+      }
+    });
+  });
+  return new Promise(resolve =>
+    control.listen(0, '127.0.0.1', () =>
+      resolve({
+        port: control.address().port,
+        close: () => [control, ...servers].forEach(s => s.close()),
+      })
+    )
+  );
+}
+
+describe('ftp server resetting data connections', () => {
+  let server;
+  before(async () => {
+    server = await startResettingFtpServer({ 'a.txt': 'hello', 'b.txt': 'world!' });
+  });
+  after(() => server.close());
+
+  test('listings and downloads succeed and the connection stays open', async () => {
+    const client = await openClient(
+      { scheme: 'ftp', host: '127.0.0.1', port: server.port, username: 'u', password: 'p', connectTimeout: 5000 },
+      noPrompt
+    );
+    try {
+      const names = (await client.readdir('/')).map(e => e.name).sort();
+      assert.deepEqual(names, ['a.txt', 'b.txt']);
+      assert.equal(Buffer.from(await client.readFile('/a.txt')).toString(), 'hello');
+      assert.equal(Buffer.from(await client.readFile('/b.txt')).toString(), 'world!');
+      assert.equal((await client.readdir('/')).length, 2);
+      assert.equal(client.closed, false);
+      assert.ok(client.dataResets >= 3, `resets: ${client.dataResets}`);
+    } finally {
+      client.close();
+    }
+  });
+});
