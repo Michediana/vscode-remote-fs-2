@@ -52,7 +52,7 @@ export class ConnectionsView implements vscode.TreeDataProvider<Node>, vscode.Di
     item.id = `connection:${conn.id}`;
     item.description = describeConnection(conn);
     item.contextValue = state.status === 'connected' ? 'remotefs.connection.connected' : 'remotefs.connection.idle';
-    item.command = { command: 'remotefs.openInWorkspace', title: 'Open in Workspace', arguments: [node] };
+    item.command = { command: 'remotefs.openInWorkspace', title: vscode.l10n.t('Open in Workspace'), arguments: [node] };
 
     switch (state.status) {
       case 'connected':
@@ -69,13 +69,19 @@ export class ConnectionsView implements vscode.TreeDataProvider<Node>, vscode.Di
     }
 
     const tooltip = new vscode.MarkdownString(undefined, true);
-    tooltip.appendMarkdown(`**${conn.name}** — ${state.status}\n\n`);
+    const statusText = {
+      connected: vscode.l10n.t('connected'),
+      connecting: vscode.l10n.t('connecting'),
+      error: vscode.l10n.t('error'),
+      idle: vscode.l10n.t('idle'),
+    }[state.status];
+    tooltip.appendMarkdown(`**${conn.name}** — ${statusText}\n\n`);
     tooltip.appendCodeblock(describeConnection(conn));
     if (state.error) {
       tooltip.appendMarkdown(`\n$(error) ${state.error}`);
     }
     if (conn.target === vscode.ConfigurationTarget.Workspace) {
-      tooltip.appendMarkdown('\n\n_Defined in workspace settings_');
+      tooltip.appendMarkdown(`\n\n_${vscode.l10n.t('Defined in workspace settings')}_`);
     }
     item.tooltip = tooltip;
     return item;

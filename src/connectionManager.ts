@@ -36,7 +36,7 @@ export function createInteraction(context: vscode.ExtensionContext, connName: st
   return {
     async prompt(message, secret) {
       return vscode.window.showInputBox({
-        title: `Remote FS 2: ${connName}`,
+        title: vscode.l10n.t('Remote FS 2: {0}', connName),
         prompt: message,
         password: secret,
         ignoreFocusOut: true,
@@ -49,12 +49,21 @@ export function createInteraction(context: vscode.ExtensionContext, connName: st
         return true;
       }
       const changed = known[key] !== undefined;
-      const trust = changed ? 'Trust New Key' : 'Trust';
+      const trust = changed ? vscode.l10n.t('Trust New Key') : vscode.l10n.t('Trust');
       const detail = changed
-        ? `The host key of ${key} has CHANGED.\n\nPreviously: ${known[key]}\nNow: ${fingerprint}\n\nThis could mean someone is intercepting the connection (man-in-the-middle), or the server was reinstalled. Only continue if you know why the key changed.`
-        : `First connection to ${key}.\n\nHost key fingerprint:\n${fingerprint}\n\nVerify it matches the server (ssh-keygen -lf /etc/ssh/ssh_host_*_key.pub) before trusting it.`;
+        ? vscode.l10n.t(
+            'The host key of {0} has CHANGED.\n\nPreviously: {1}\nNow: {2}\n\nThis could mean someone is intercepting the connection (man-in-the-middle), or the server was reinstalled. Only continue if you know why the key changed.',
+            key,
+            known[key],
+            fingerprint
+          )
+        : vscode.l10n.t(
+            'First connection to {0}.\n\nHost key fingerprint:\n{1}\n\nVerify it matches the server (ssh-keygen -lf /etc/ssh/ssh_host_*_key.pub) before trusting it.',
+            key,
+            fingerprint
+          );
       const answer = await vscode.window.showWarningMessage(
-        changed ? 'Remote FS 2: host key changed!' : 'Remote FS 2: unknown host',
+        changed ? vscode.l10n.t('Remote FS 2: host key changed!') : vscode.l10n.t('Remote FS 2: unknown host'),
         { modal: true, detail },
         trust
       );
@@ -90,9 +99,9 @@ export async function resolveConnection(
   const needsPassword =
     conn.scheme === 'sftp' ? !c.privateKeyPath && !c.agent && !c.interactiveAuth : true;
   if (password === undefined && needsPassword) {
-    password = await ui.prompt(`Password for ${c.username ?? ''}@${c.host}`, true);
+    password = await ui.prompt(vscode.l10n.t('Password for {0}@{1}', c.username ?? '', c.host), true);
     if (password === undefined) {
-      throw new RemoteError('ECANCELED', 'Password prompt cancelled');
+      throw new RemoteError('ECANCELED', vscode.l10n.t('Password prompt cancelled'));
     }
     typed.password = password;
   }
@@ -102,9 +111,9 @@ export async function resolveConnection(
   if (passphrase === undefined && c.privateKeyPath) {
     passphrase = await store.getSecret(conn.id, 'passphrase');
     if (passphrase === undefined && c.passphrase === true) {
-      passphrase = await ui.prompt(`Passphrase for ${c.privateKeyPath}`, true);
+      passphrase = await ui.prompt(vscode.l10n.t('Passphrase for {0}', c.privateKeyPath), true);
       if (passphrase === undefined) {
-        throw new RemoteError('ECANCELED', 'Passphrase prompt cancelled');
+        throw new RemoteError('ECANCELED', vscode.l10n.t('Passphrase prompt cancelled'));
       }
       typed.passphrase = passphrase;
     }
@@ -148,9 +157,9 @@ export async function connectWithPrompts(
     if (!encryptedKey) {
       throw err;
     }
-    const passphrase = await ui.prompt(`Passphrase for ${conn.config.privateKeyPath}`, true);
+    const passphrase = await ui.prompt(vscode.l10n.t('Passphrase for {0}', conn.config.privateKeyPath ?? ''), true);
     if (passphrase === undefined) {
-      throw new RemoteError('ECANCELED', 'Passphrase prompt cancelled');
+      throw new RemoteError('ECANCELED', vscode.l10n.t('Passphrase prompt cancelled'));
     }
     const client = await openClient({ ...resolved, passphrase }, ui);
     return { client, typed: { ...typed, passphrase } };
@@ -285,10 +294,10 @@ export class ConnectionManager implements vscode.Disposable {
   }
 
   private async notifyFailure(conn: Connection, err: unknown) {
-    const edit = 'Edit Connection';
-    const log = 'Show Log';
+    const edit = vscode.l10n.t('Edit Connection');
+    const log = vscode.l10n.t('Show Log');
     const answer = await vscode.window.showErrorMessage(
-      `Remote FS 2: ${conn.name}: ${errorMessage(err)}`,
+      vscode.l10n.t('Remote FS 2: {0}: {1}', conn.name, errorMessage(err)),
       edit,
       log
     );
@@ -304,12 +313,14 @@ export class ConnectionManager implements vscode.Disposable {
     if (!kinds.length) {
       return;
     }
-    const save = 'Save in Keychain';
-    const answer = await vscode.window.showInformationMessage(
-      `Remote FS 2: save the ${kinds.join(' and ')} for "${conn.name}" in the OS keychain?`,
-      save,
-      'Not Now'
-    );
+    const save = vscode.l10n.t('Save in Keychain');
+    const what =
+      kinds.length === 2
+        ? vscode.l10n.t('Remote FS 2: save the password and passphrase for "{0}" in the OS keychain?', conn.name)
+        : kinds[0] === 'password'
+          ? vscode.l10n.t('Remote FS 2: save the password for "{0}" in the OS keychain?', conn.name)
+          : vscode.l10n.t('Remote FS 2: save the passphrase for "{0}" in the OS keychain?', conn.name);
+    const answer = await vscode.window.showInformationMessage(what, save, vscode.l10n.t('Not Now'));
     if (answer === save) {
       for (const k of kinds) {
         await this.store.setSecret(conn.id, k, typed[k]!);

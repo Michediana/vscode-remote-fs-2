@@ -177,7 +177,7 @@ export class ConnectionStore implements vscode.Disposable {
     }
     const saved = normalize(name, clean, target);
     if (!saved) {
-      throw new Error('Invalid connection configuration');
+      throw new Error(vscode.l10n.t('Invalid connection configuration'));
     }
     return saved;
   }

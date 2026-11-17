@@ -47,11 +47,16 @@ interface ActiveMirror {
   disposables: vscode.Disposable[];
 }
 
-const CONFLICT_TEXT: Record<ConflictKind, string> = {
-  'both-changed': 'was changed both locally and on the server',
-  'deleted-locally': 'was deleted locally but changed on the server',
-  'deleted-remotely': 'was changed locally but deleted on the server',
-};
+function conflictText(kind: ConflictKind): string {
+  switch (kind) {
+    case 'both-changed':
+      return vscode.l10n.t('was changed both locally and on the server');
+    case 'deleted-locally':
+      return vscode.l10n.t('was deleted locally but changed on the server');
+    case 'deleted-remotely':
+      return vscode.l10n.t('was changed locally but deleted on the server');
+  }
+}
 
 function mirrorSettings() {
   const cfg = vscode.workspace.getConfiguration('remotefs.mirror');
@@ -119,7 +124,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
     private readonly store: ConnectionStore,
     private readonly provider: RemoteFileSystemProvider
   ) {
-    this.statusBar.name = 'Remote FS 2 Mirror';
+    this.statusBar.name = vscode.l10n.t('Remote FS 2 Mirror');
     this.disposables.push(
       vscode.window.registerFileDecorationProvider(this),
       vscode.workspace.onDidChangeWorkspaceFolders(() => this.refreshActive()),
@@ -187,7 +192,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
       return undefined;
     }
     m.engine.requestFetch(rel);
-    return { badge: '↓', tooltip: `Downloading from ${m.conn.name}…`, color: new vscode.ThemeColor('descriptionForeground') };
+    return { badge: '↓', tooltip: vscode.l10n.t('Downloading from {0}…', m.conn.name), color: new vscode.ThemeColor('descriptionForeground') };
   }
 
   // ---------------------------------------------------------------- lifecycle
@@ -329,7 +334,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
         : await vscode.window.withProgress(
             {
               location: vscode.ProgressLocation.Notification,
-              title: opts.title ?? `Remote FS 2: syncing ${m.conn.name}`,
+              title: opts.title ?? vscode.l10n.t('Remote FS 2: syncing {0}', m.conn.name),
               cancellable: true,
             },
             (progress, token) => run(progress, token)
@@ -337,9 +342,12 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
       this.logReport(m, report);
       if (report.errors.length) {
         this.lastError = report.errors[0];
-        const log = 'Show Log';
+        const log = vscode.l10n.t('Show Log');
         vscode.window
-          .showWarningMessage(`Remote FS 2: ${report.errors.length} file(s) of ${m.conn.name} could not be synced.`, log)
+          .showWarningMessage(
+            vscode.l10n.t('Remote FS 2: {0} file(s) of {1} could not be synced.', report.errors.length, m.conn.name),
+            log
+          )
           .then(a => a === log && logger.show());
       }
       if (report.conflicts.length === 1) {
@@ -348,10 +356,14 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
           this.promptConflict(m, c.rel, c.kind);
         }
       } else if (report.conflicts.length > 1) {
-        const resolve = 'Resolve…';
+        const resolve = vscode.l10n.t('Resolve…');
         vscode.window
           .showWarningMessage(
-            `Remote FS 2: ${report.conflicts.length} files of ${m.conn.name} changed both locally and on the server.`,
+            vscode.l10n.t(
+              'Remote FS 2: {0} files of {1} changed both locally and on the server.',
+              report.conflicts.length,
+              m.conn.name
+            ),
             resolve
           )
           .then(a => {
@@ -361,7 +373,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
           });
       } else if (!opts.silent) {
         const n = report.downloaded.length + report.uploaded.length + report.deletedLocal.length + report.deletedRemote.length;
-        vscode.window.setStatusBarMessage(`$(check) Remote FS 2: ${m.conn.name} in sync (${n} change(s))`, 5000);
+        vscode.window.setStatusBarMessage(vscode.l10n.t('$(check) Remote FS 2: {0} in sync ({1} change(s))', m.conn.name, n), 5000);
       }
       return report;
     } catch (err) {
@@ -372,7 +384,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
       this.lastError = errorMessage(err);
       logger.error(`Sync of ${m.localRoot} failed: ${errorMessage(err)}`);
       if (!(err instanceof RemoteError && err.code === 'ECANCELED')) {
-        vscode.window.showErrorMessage(`Remote FS 2: sync of ${m.conn.name} failed: ${errorMessage(err)}`);
+        vscode.window.showErrorMessage(vscode.l10n.t('Remote FS 2: sync of {0} failed: {1}', m.conn.name, errorMessage(err)));
       }
       return undefined;
     } finally {
@@ -393,12 +405,16 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
   }
 
   private async confirmRemoteDeletes(conn: Connection, rels: string[]) {
-    const del = 'Delete on Server';
-    const keep = 'Keep on Server';
-    const list = rels.slice(0, 15).join('\n') + (rels.length > 15 ? `\n… and ${rels.length - 15} more` : '');
+    const del = vscode.l10n.t('Delete on Server');
+    const keep = vscode.l10n.t('Keep on Server');
+    const list = rels.slice(0, 15).join('\n') + (rels.length > 15 ? '\n' + vscode.l10n.t('… and {0} more', rels.length - 15) : '');
     const answer = await vscode.window.showWarningMessage(
-      `Remote FS 2: ${rels.length} files were deleted from the local mirror of ${conn.name}. Delete them on the server too?`,
-      { modal: true, detail: `${list}\n\n"Keep on Server" downloads them again on the next sync.` },
+      vscode.l10n.t(
+        'Remote FS 2: {0} files were deleted from the local mirror of {1}. Delete them on the server too?',
+        rels.length,
+        conn.name
+      ),
+      { modal: true, detail: `${list}\n\n` + vscode.l10n.t('"{0}" downloads them again on the next sync.', keep) },
       del,
       keep
     );
@@ -414,15 +430,15 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
   private async compare(m: ActiveMirror, rel: string) {
     const local = vscode.Uri.file(m.engine.localPath(rel));
     const remote = this.remoteUri(m, rel);
-    await vscode.commands.executeCommand('vscode.diff', remote, local, `${rel} (server ↔ local)`);
+    await vscode.commands.executeCommand('vscode.diff', remote, local, vscode.l10n.t('{0} (server ↔ local)', rel));
   }
 
   private async promptConflict(m: ActiveMirror, rel: string, kind: ConflictKind): Promise<void> {
-    const compare = 'Compare';
-    const keepLocal = kind === 'deleted-locally' ? 'Delete on Server' : 'Upload Local';
-    const keepRemote = kind === 'deleted-remotely' ? 'Delete Local' : 'Download Server Copy';
+    const compare = vscode.l10n.t('Compare');
+    const keepLocal = kind === 'deleted-locally' ? vscode.l10n.t('Delete on Server') : vscode.l10n.t('Upload Local');
+    const keepRemote = kind === 'deleted-remotely' ? vscode.l10n.t('Delete Local') : vscode.l10n.t('Download Server Copy');
     const answer = await vscode.window.showWarningMessage(
-      `Remote FS 2: "${rel}" ${CONFLICT_TEXT[kind]} (${m.conn.name}). It was not synced.`,
+      vscode.l10n.t('Remote FS 2: "{0}" {1} ({2}). It was not synced.', rel, conflictText(kind), m.conn.name),
       ...(kind === 'both-changed' ? [compare] : []),
       keepLocal,
       keepRemote
@@ -435,7 +451,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
       try {
         await m.engine.resolve(rel, answer === keepLocal ? 'local' : 'remote');
       } catch (err) {
-        vscode.window.showErrorMessage(`Remote FS 2: ${rel}: ${errorMessage(err)}`);
+        vscode.window.showErrorMessage(vscode.l10n.t('Remote FS 2: {0}: {1}', rel, errorMessage(err)));
       }
       this.updateStatus();
     }
@@ -446,16 +462,16 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
       m.engine.conflicts.map(c => ({
         label: c.rel,
         description: m.conn.name,
-        detail: CONFLICT_TEXT[c.kind],
+        detail: conflictText(c.kind),
         m,
         c,
       }))
     );
     if (!items.length) {
-      vscode.window.showInformationMessage('Remote FS 2: no conflicts.');
+      vscode.window.showInformationMessage(vscode.l10n.t('Remote FS 2: no conflicts.'));
       return;
     }
-    const picked = await vscode.window.showQuickPick(items, { placeHolder: 'Select a conflict to resolve' });
+    const picked = await vscode.window.showQuickPick(items, { placeHolder: vscode.l10n.t('Select a conflict to resolve') });
     if (picked) {
       await this.promptConflict(picked.m, picked.c.rel, picked.c.kind);
       if ([...this.active.values()].some(m => m.engine.conflicts.length)) {
@@ -477,17 +493,20 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
     const busy = mirrors.some(m => m.engine.busy);
     const names = mirrors.map(m => m.conn.name).join(', ');
     if (conflicts) {
-      this.statusBar.text = `$(warning) ${conflicts} conflict${conflicts > 1 ? 's' : ''}`;
-      this.statusBar.tooltip = 'Remote FS 2 mirror: click to resolve conflicts';
+      this.statusBar.text =
+        conflicts > 1 ? vscode.l10n.t('$(warning) {0} conflicts', conflicts) : vscode.l10n.t('$(warning) {0} conflict', conflicts);
+      this.statusBar.tooltip = vscode.l10n.t('Remote FS 2 mirror: click to resolve conflicts');
       this.statusBar.command = 'remotefs.resolveMirrorConflicts';
       this.statusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
     } else {
       this.statusBar.text = busy ? `$(sync~spin) ${names}` : this.lastError ? `$(cloud-offline) ${names}` : `$(cloud) ${names}`;
       this.statusBar.tooltip = busy
-        ? 'Remote FS 2 mirror: syncing…'
+        ? vscode.l10n.t('Remote FS 2 mirror: syncing…')
         : this.lastError
-          ? `Remote FS 2 mirror: last sync failed (${this.lastError}). Click to sync now.`
-          : 'Remote FS 2 mirror: local changes are uploaded automatically, folders are downloaded when opened. Click to sync now (re-checks the opened folders on the server).';
+          ? vscode.l10n.t('Remote FS 2 mirror: last sync failed ({0}). Click to sync now.', this.lastError)
+          : vscode.l10n.t(
+              'Remote FS 2 mirror: local changes are uploaded automatically, folders are downloaded when opened. Click to sync now (re-checks the opened folders on the server).'
+            );
       this.statusBar.command = 'remotefs.syncMirror';
       this.statusBar.backgroundColor = this.lastError ? new vscode.ThemeColor('statusBarItem.errorBackground') : undefined;
     }
@@ -516,10 +535,13 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
     if (!existing) {
       const choice = await vscode.window.showQuickPick(
         [
-          { label: localRoot, description: 'default location', id: 'default' },
-          { label: '$(folder) Choose another folder…', id: 'pick' },
+          { label: localRoot, description: vscode.l10n.t('default location'), id: 'default' },
+          { label: vscode.l10n.t('$(folder) Choose another folder…'), id: 'pick' },
         ],
-        { title: `Local mirror of ${conn.name}${remotePath}`, placeHolder: 'Where should the files be downloaded?' }
+        {
+          title: vscode.l10n.t('Local mirror of {0}{1}', conn.name, remotePath),
+          placeHolder: vscode.l10n.t('Where should the files be downloaded?'),
+        }
       );
       if (!choice) {
         return;
@@ -529,7 +551,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
           canSelectFolders: true,
           canSelectFiles: false,
           canSelectMany: false,
-          openLabel: 'Use as Mirror',
+          openLabel: vscode.l10n.t('Use as Mirror'),
         });
         if (!picked?.length) {
           return;
@@ -537,13 +559,14 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
         localRoot = picked[0].fsPath;
       }
       if (existsSync(localRoot) && readdirSync(localRoot).length) {
-        const go = 'Use It';
+        const go = vscode.l10n.t('Use It');
         const answer = await vscode.window.showWarningMessage(
-          `${localRoot} is not empty.`,
+          vscode.l10n.t('{0} is not empty.', localRoot),
           {
             modal: true,
-            detail:
-              'Files identical on both sides are adopted, files only on the server are downloaded, files only in the folder are UPLOADED to the server, and files that differ are reported as conflicts (nothing is overwritten).',
+            detail: vscode.l10n.t(
+              'Files identical on both sides are adopted, files only on the server are downloaded, files only in the folder are UPLOADED to the server, and files that differ are reported as conflicts (nothing is overwritten).'
+            ),
           },
           go
         );
@@ -565,7 +588,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
       return;
     }
     // only the top folder is downloaded now; sub-folders are downloaded when opened
-    const report = await this.syncNow(m, { title: `Remote FS 2: opening ${conn.name}${remotePath}` });
+    const report = await this.syncNow(m, { title: vscode.l10n.t('Remote FS 2: opening {0}{1}', conn.name, remotePath) });
     if (temporary) {
       // the window that will show the folder runs its own mirror (and watcher)
       this.stop(localRoot);
@@ -584,14 +607,20 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
     }
     const items = [
       {
-        label: '$(empty-window) Open in New Window',
-        detail: 'Recommended for AI agents: the mirror becomes the project root (e.g. the working directory of Claude Code).',
+        label: vscode.l10n.t('$(empty-window) Open in New Window'),
+        detail: vscode.l10n.t(
+          'Recommended for AI agents: the mirror becomes the project root (e.g. the working directory of Claude Code).'
+        ),
         id: 'new',
       },
-      { label: '$(window) Open in Current Window', id: 'current' },
-      { label: '$(add) Add to Workspace', detail: 'Agents usually work only in the first workspace folder.', id: 'add' },
+      { label: vscode.l10n.t('$(window) Open in Current Window'), id: 'current' },
+      {
+        label: vscode.l10n.t('$(add) Add to Workspace'),
+        detail: vscode.l10n.t('Agents usually work only in the first workspace folder.'),
+        id: 'add',
+      },
     ];
-    const picked = await vscode.window.showQuickPick(items, { placeHolder: `Mirror ready in ${localRoot}` });
+    const picked = await vscode.window.showQuickPick(items, { placeHolder: vscode.l10n.t('Mirror ready in {0}', localRoot) });
     if (picked?.id === 'new') {
       await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
     } else if (picked?.id === 'current') {
@@ -643,7 +672,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
     if (mirrors.length <= 1) {
       if (!mirrors.length) {
         vscode.window.showInformationMessage(
-          'Remote FS 2: no local mirror is open. Use "Open Local Mirror" on a connection in the Remote FS 2 view.'
+          vscode.l10n.t('Remote FS 2: no local mirror is open. Use "Open Local Mirror" on a connection in the Remote FS 2 view.')
         );
       }
       return mirrors[0];
@@ -657,24 +686,32 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
 
   /** Explorer context menu: download a folder of a mirror (optionally with all sub-folders). */
   async downloadFolderCommand(uri?: vscode.Uri) {
-    const m = uri ? this.mirrorFor(uri.fsPath) : await this.pickActive('Select the mirror');
+    const m = uri ? this.mirrorFor(uri.fsPath) : await this.pickActive(vscode.l10n.t('Select the mirror'));
     if (!m) {
       return;
     }
     const rel = uri ? m.engine.relativeOf(uri.fsPath) ?? '' : '';
     const picked = await vscode.window.showQuickPick(
       [
-        { label: 'This folder only', description: 'its files; sub-folders stay on demand', recursive: false },
-        { label: 'With all sub-folders', description: 'can take long on big trees', recursive: true },
+        {
+          label: vscode.l10n.t('This folder only'),
+          description: vscode.l10n.t('its files; sub-folders stay on demand'),
+          recursive: false,
+        },
+        { label: vscode.l10n.t('With all sub-folders'), description: vscode.l10n.t('can take long on big trees'), recursive: true },
       ],
-      { placeHolder: `Download ${rel || m.conn.name} from the server` }
+      { placeHolder: vscode.l10n.t('Download {0} from the server', rel || m.conn.name) }
     );
     if (!picked) {
       return;
     }
     try {
       const report = await vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: `Remote FS 2: downloading ${rel || '/'}`, cancellable: true },
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: vscode.l10n.t('Remote FS 2: downloading {0}', rel || '/'),
+          cancellable: true,
+        },
         (progress, token) =>
           m.engine.fetchDir(rel, {
             recursive: picked.recursive,
@@ -685,27 +722,27 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
       this.logReport(m, report);
     } catch (err) {
       if (!(err instanceof CancelledError)) {
-        vscode.window.showErrorMessage(`Remote FS 2: download of ${rel || '/'} failed: ${errorMessage(err)}`);
+        vscode.window.showErrorMessage(vscode.l10n.t('Remote FS 2: download of {0} failed: {1}', rel || '/', errorMessage(err)));
       }
     }
   }
 
   async syncCommand(uri?: vscode.Uri) {
-    const m = uri ? this.mirrorFor(uri.fsPath) : await this.pickActive('Select the mirror to sync');
+    const m = uri ? this.mirrorFor(uri.fsPath) : await this.pickActive(vscode.l10n.t('Select the mirror to sync'));
     if (m) {
       await this.syncNow(m);
     }
   }
 
   async unlinkCommand(uri?: vscode.Uri) {
-    const m = uri ? this.mirrorFor(uri.fsPath) : await this.pickActive('Select the mirror to stop syncing');
+    const m = uri ? this.mirrorFor(uri.fsPath) : await this.pickActive(vscode.l10n.t('Select the mirror to stop syncing'));
     if (!m) {
       return;
     }
-    const stop = 'Stop Syncing';
+    const stop = vscode.l10n.t('Stop Syncing');
     const answer = await vscode.window.showWarningMessage(
-      `Stop syncing ${m.localRoot} with ${m.conn.name}?`,
-      { modal: true, detail: 'The local files are kept; changes will no longer be uploaded.' },
+      vscode.l10n.t('Stop syncing {0} with {1}?', m.localRoot, m.conn.name),
+      { modal: true, detail: vscode.l10n.t('The local files are kept; changes will no longer be uploaded.') },
       stop
     );
     if (answer !== stop) {

@@ -82,28 +82,28 @@ function toForm(conn: Connection | undefined, duplicate: boolean): FormData {
   };
 }
 
-function validate(d: FormData, store: ConnectionStore, original?: Connection): string | undefined {
+function validate(d: FormData, store: ConnectionStore, original?: Connection, checkClash = true): string | undefined {
   if (!d.name.trim()) {
-    return 'Name is required.';
+    return vscode.l10n.t('Name is required.');
   }
   if (!NAME_PATTERN.test(d.name.trim())) {
-    return 'Name may contain only letters, digits, ".", "_" and "-" (it is used in the URI).';
+    return vscode.l10n.t('Name may contain only letters, digits, ".", "_" and "-" (it is used in the URI).');
   }
-  const clash = store.get(d.name.trim());
+  const clash = checkClash ? store.get(d.name.trim()) : undefined;
   if (clash && clash.id !== original?.id) {
-    return `A connection named "${clash.name}" already exists.`;
+    return vscode.l10n.t('A connection named "{0}" already exists.', clash.name);
   }
   if (!d.host.trim()) {
-    return 'Host is required.';
+    return vscode.l10n.t('Host is required.');
   }
   if (d.port && !(Number(d.port) > 0 && Number(d.port) < 65536)) {
-    return 'Port must be a number between 1 and 65535.';
+    return vscode.l10n.t('Port must be a number between 1 and 65535.');
   }
   if (d.connectTimeout && !(Number(d.connectTimeout) > 0)) {
-    return 'Timeout must be a positive number of milliseconds.';
+    return vscode.l10n.t('Timeout must be a positive number of milliseconds.');
   }
   if (d.scheme === 'sftp' && d.auth === 'key' && !d.privateKeyPath.trim()) {
-    return 'Private key path is required.';
+    return vscode.l10n.t('Private key path is required.');
   }
   return undefined;
 }
@@ -161,6 +161,18 @@ function draftConnection(d: FormData, original?: Connection): Connection {
   };
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+}
+
+/**
+ * HTML-escapes a translated string whose placeholders were left as literal "{0}", "{1}"…
+ * (by passing '{0}', '{1}'… as arguments) and then replaces them with trusted HTML fragments.
+ */
+function htmlFormat(translated: string, ...fragments: string[]): string {
+  return escapeHtml(translated).replace(/\{(\d+)\}/g, (m, i) => fragments[Number(i)] ?? m);
+}
+
 export class ConnectionEditor {
   private static readonly panels = new Map<string, ConnectionEditor>();
   private readonly panel: vscode.WebviewPanel;
@@ -192,7 +204,8 @@ export class ConnectionEditor {
     private readonly duplicate: boolean
   ) {
     this.original = duplicate ? undefined : conn;
-    const title = conn && !duplicate ? `Remote FS 2: ${conn.name}` : 'Remote FS 2: New Connection';
+    const title =
+      conn && !duplicate ? `Remote FS 2: ${conn.name}` : vscode.l10n.t('Remote FS 2: New Connection');
     this.panel = vscode.window.createWebviewPanel('remotefs.connectionEditor', title, vscode.ViewColumn.Active, {
       enableScripts: true,
       retainContextWhenHidden: true,
@@ -231,7 +244,7 @@ export class ConnectionEditor {
         }
         case 'browseKey': {
           const picked = await vscode.window.showOpenDialog({
-            title: 'Select private key',
+            title: vscode.l10n.t('Select private key'),
             canSelectMany: false,
             defaultUri: vscode.Uri.file(os.homedir() + '/.ssh'),
           });
@@ -260,12 +273,13 @@ export class ConnectionEditor {
   }
 
   private async test(d: FormData) {
-    const error = validate({ ...d, name: d.name || 'draft' }, this.store, this.original);
-    if (error && !/already exists/.test(error)) {
+    // a name clash does not prevent testing the connection
+    const error = validate({ ...d, name: d.name || 'draft' }, this.store, this.original, false);
+    if (error) {
       await this.post({ type: 'status', ok: false, message: error });
       return;
     }
-    await this.post({ type: 'status', busy: true, message: 'Connecting…' });
+    await this.post({ type: 'status', busy: true, message: vscode.l10n.t('Connecting…') });
     const conn = draftConnection(d, this.original);
     const overrides = { password: d.password || undefined, passphrase: d.passphrase || undefined };
     // Only use keychain secrets of the connection being edited, and not the ones the user is about to forget.
@@ -289,11 +303,14 @@ export class ConnectionEditor {
       await this.post({
         type: 'status',
         ok: true,
-        message: `Connected in ${Date.now() - started} ms — ${root} contains ${entries.length} entries.`,
+        message:
+          entries.length === 1
+            ? vscode.l10n.t('Connected in {0} ms — {1} contains {2} entry.', Date.now() - started, root, entries.length)
+            : vscode.l10n.t('Connected in {0} ms — {1} contains {2} entries.', Date.now() - started, root, entries.length),
       });
     } catch (err) {
       const cancelled = err instanceof RemoteError && err.code === 'ECANCELED';
-      await this.post({ type: 'status', ok: false, message: cancelled ? 'Cancelled.' : errorMessage(err) });
+      await this.post({ type: 'status', ok: false, message: cancelled ? vscode.l10n.t('Cancelled.') : errorMessage(err) });
     } finally {
       client?.close();
     }
@@ -331,10 +348,15 @@ export class ConnectionEditor {
 
     if (this.original && this.original.id !== id) {
       vscode.window.showWarningMessage(
-        `Remote FS 2: "${this.original.name}" was renamed to "${name}". Workspace folders using ${this.original.scheme}://${this.original.id}/ must be re-added.`
+        vscode.l10n.t(
+          'Remote FS 2: "{0}" was renamed to "{1}". Workspace folders using {2} must be re-added.',
+          this.original.name,
+          name,
+          `${this.original.scheme}://${this.original.id}/`
+        )
       );
     } else {
-      vscode.window.showInformationMessage(`Remote FS 2: connection "${name}" saved.`);
+      vscode.window.showInformationMessage(vscode.l10n.t('Remote FS 2: connection "{0}" saved.', name));
     }
     this.panel.dispose();
   }
@@ -346,13 +368,24 @@ export class ConnectionEditor {
       `style-src 'nonce-${nonce}'`,
       `script-src 'nonce-${nonce}'`,
     ].join('; ');
+    const e = escapeHtml;
+    const saved = vscode.l10n.t('•••••••• (saved in keychain — type to replace)');
+    // strings used by the inline script (escape "<" so the JSON cannot close the <script> element)
+    const scriptStrings = JSON.stringify({
+      newConnection: vscode.l10n.t('New Connection'),
+      editConnection: vscode.l10n.t('Edit Connection — {0}', '{0}'),
+      namePlaceholder: vscode.l10n.t('name'),
+      savedPlaceholder: saved,
+      passwordSaved: vscode.l10n.t('A password is saved in the keychain.'),
+      saving: vscode.l10n.t('Saving…'),
+    }).replace(/</g, '\\u003c');
     return /* html */ `<!DOCTYPE html>
-<html lang="en">
+<html lang="${e(vscode.env.language || 'en')}">
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Remote FS 2 Connection</title>
+<title>${e(vscode.l10n.t('Remote FS 2 Connection'))}</title>
 <style nonce="${nonce}">
   body { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); color: var(--vscode-foreground); padding: 0 24px 32px; max-width: 760px; }
   h1 { font-size: 1.5em; font-weight: 600; margin: 20px 0 4px; }
@@ -392,74 +425,87 @@ export class ConnectionEditor {
 </style>
 </head>
 <body>
-<h1 id="title">Connection</h1>
-<div class="sub">Connection settings are saved in the <code>remotefs.remote</code> setting. Passwords and passphrases are stored in the OS keychain, never in settings.</div>
+<h1 id="title">${e(vscode.l10n.t('Connection'))}</h1>
+<div class="sub">${htmlFormat(
+      vscode.l10n.t(
+        'Connection settings are saved in the {0} setting. Passwords and passphrases are stored in the OS keychain, never in settings.',
+        '{0}'
+      ),
+      '<code>remotefs.remote</code>'
+    )}</div>
 
 <form id="form" autocomplete="off">
 <fieldset>
-  <legend>General</legend>
-  <div class="row"><label for="name">Name</label><input type="text" id="name" required placeholder="my-server"></div>
-  <div class="row"><span></span><div class="hint">Used in URIs (e.g. <code>sftp://<span id="namePreview">name</span>/</code>). Letters, digits, <code>. _ -</code></div></div>
-  <div class="row"><label for="label">Display label</label><input type="text" id="label" placeholder="optional"></div>
-  <div class="row"><label for="scheme">Protocol</label>
+  <legend>${e(vscode.l10n.t('General'))}</legend>
+  <div class="row"><label for="name">${e(vscode.l10n.t('Name'))}</label><input type="text" id="name" required placeholder="my-server"></div>
+  <div class="row"><span></span><div class="hint">${htmlFormat(
+      vscode.l10n.t('Used in URIs (e.g. {0}). Letters, digits, {1}', '{0}', '{1}'),
+      `<code>sftp://<span id="namePreview">${e(vscode.l10n.t('name'))}</span>/</code>`,
+      '<code>. _ -</code>'
+    )}</div></div>
+  <div class="row"><label for="label">${e(vscode.l10n.t('Display label'))}</label><input type="text" id="label" placeholder="${e(vscode.l10n.t('optional'))}"></div>
+  <div class="row"><label for="scheme">${e(vscode.l10n.t('Protocol'))}</label>
     <select id="scheme">
       <option value="sftp">SFTP (SSH)</option>
       <option value="ftp">FTP</option>
-      <option value="ftps">FTPS (FTP over TLS)</option>
+      <option value="ftps">FTPS (${e(vscode.l10n.t('FTP over TLS'))})</option>
     </select></div>
-  <div class="row"><label for="host">Host</label><input type="text" id="host" required placeholder="example.com"></div>
-  <div class="row"><label for="port">Port</label><input type="number" id="port" min="1" max="65535"></div>
-  <div class="row"><label for="rootPath">Remote root path</label><input type="text" id="rootPath" placeholder="/ (absolute, or relative to the login directory, e.g. ~/www)"></div>
+  <div class="row"><label for="host">${e(vscode.l10n.t('Host'))}</label><input type="text" id="host" required placeholder="example.com"></div>
+  <div class="row"><label for="port">${e(vscode.l10n.t('Port'))}</label><input type="number" id="port" min="1" max="65535"></div>
+  <div class="row"><label for="rootPath">${e(vscode.l10n.t('Remote root path'))}</label><input type="text" id="rootPath" placeholder="${e(vscode.l10n.t('/ (absolute, or relative to the login directory, e.g. ~/www)'))}"></div>
 </fieldset>
 
 <fieldset>
-  <legend>Authentication</legend>
-  <div class="row"><label for="username">Username</label><input type="text" id="username"></div>
-  <div class="row sftp-only"><label>Method</label>
+  <legend>${e(vscode.l10n.t('Authentication'))}</legend>
+  <div class="row"><label for="username">${e(vscode.l10n.t('Username'))}</label><input type="text" id="username"></div>
+  <div class="row sftp-only"><label>${e(vscode.l10n.t('Method'))}</label>
     <div class="radios">
-      <label><input type="radio" name="auth" value="password"> Password</label>
-      <label><input type="radio" name="auth" value="key"> Private key</label>
-      <label><input type="radio" name="auth" value="agent"> SSH agent</label>
+      <label><input type="radio" name="auth" value="password"> ${e(vscode.l10n.t('Password'))}</label>
+      <label><input type="radio" name="auth" value="key"> ${e(vscode.l10n.t('Private key'))}</label>
+      <label><input type="radio" name="auth" value="agent"> ${e(vscode.l10n.t('SSH agent'))}</label>
     </div></div>
 
   <div class="auth-password">
-    <div class="row"><label for="password">Password</label><input type="password" id="password"></div>
-    <div class="row"><span></span><div class="hint" id="passwordHint">Leave empty to be asked when connecting.</div></div>
-    <div class="row hidden" id="plaintextNote"><span></span><div class="note">This connection has a plain-text password in settings.json: saving moves it to the keychain.</div></div>
-    <div class="row"><label class="check"><input type="checkbox" id="savePassword"> Remember password in OS keychain</label></div>
-    <div class="row hidden" id="forgetPasswordRow"><label class="check"><input type="checkbox" id="forgetPassword"> Forget saved password</label></div>
+    <div class="row"><label for="password">${e(vscode.l10n.t('Password'))}</label><input type="password" id="password"></div>
+    <div class="row"><span></span><div class="hint" id="passwordHint">${e(vscode.l10n.t('Leave empty to be asked when connecting.'))}</div></div>
+    <div class="row hidden" id="plaintextNote"><span></span><div class="note">${e(vscode.l10n.t('This connection has a plain-text password in settings.json: saving moves it to the keychain.'))}</div></div>
+    <div class="row"><label class="check"><input type="checkbox" id="savePassword"> ${e(vscode.l10n.t('Remember password in OS keychain'))}</label></div>
+    <div class="row hidden" id="forgetPasswordRow"><label class="check"><input type="checkbox" id="forgetPassword"> ${e(vscode.l10n.t('Forget saved password'))}</label></div>
   </div>
 
   <div class="auth-key sftp-only">
-    <div class="row"><label for="privateKeyPath">Private key</label>
-      <div class="inline"><input type="text" id="privateKeyPath" placeholder="~/.ssh/id_ed25519"><button type="button" class="secondary" id="browseKey">Browse…</button></div></div>
-    <div class="row"><label for="passphrase">Passphrase</label><input type="password" id="passphrase" placeholder="only for encrypted keys"></div>
-    <div class="row"><span></span><div class="hint" id="passphraseHint">Stored in the OS keychain. Leave empty if the key is not encrypted (you will be asked if needed).</div></div>
-    <div class="row hidden" id="forgetPassphraseRow"><label class="check"><input type="checkbox" id="forgetPassphrase"> Forget saved passphrase</label></div>
+    <div class="row"><label for="privateKeyPath">${e(vscode.l10n.t('Private key'))}</label>
+      <div class="inline"><input type="text" id="privateKeyPath" placeholder="~/.ssh/id_ed25519"><button type="button" class="secondary" id="browseKey">${e(vscode.l10n.t('Browse…'))}</button></div></div>
+    <div class="row"><label for="passphrase">${e(vscode.l10n.t('Passphrase'))}</label><input type="password" id="passphrase" placeholder="${e(vscode.l10n.t('only for encrypted keys'))}"></div>
+    <div class="row"><span></span><div class="hint" id="passphraseHint">${e(vscode.l10n.t('Stored in the OS keychain. Leave empty if the key is not encrypted (you will be asked if needed).'))}</div></div>
+    <div class="row hidden" id="forgetPassphraseRow"><label class="check"><input type="checkbox" id="forgetPassphrase"> ${e(vscode.l10n.t('Forget saved passphrase'))}</label></div>
   </div>
 
   <div class="auth-agent sftp-only">
-    <div class="row"><label for="agent">Agent socket</label><input type="text" id="agent" placeholder="$SSH_AUTH_SOCK (or 'pageant' on Windows)"></div>
+    <div class="row"><label for="agent">${e(vscode.l10n.t('Agent socket'))}</label><input type="text" id="agent" placeholder="${e(vscode.l10n.t("{0} (or '{1}' on Windows)", '$SSH_AUTH_SOCK', 'pageant'))}"></div>
   </div>
 
-  <div class="row sftp-only"><label class="check"><input type="checkbox" id="interactiveAuth"> Keyboard-interactive authentication (2FA / OTP prompts)</label></div>
+  <div class="row sftp-only"><label class="check"><input type="checkbox" id="interactiveAuth"> ${e(vscode.l10n.t('Keyboard-interactive authentication (2FA / OTP prompts)'))}</label></div>
 </fieldset>
 
 <fieldset>
-  <legend>Advanced</legend>
-  <div class="row"><label for="connectTimeout">Timeout (ms)</label><input type="number" id="connectTimeout" min="1" placeholder="10000"></div>
-  <div class="row ftps-only"><label class="check"><input type="checkbox" id="implicitTls"> Implicit TLS (legacy, usually port 990)</label></div>
-  <div class="row ftps-only"><label class="check"><input type="checkbox" id="rejectUnauthorized"> Verify TLS certificate</label></div>
-  <div class="row sftp-only hidden" id="algorithmsNote"><span></span><div class="hint">Custom <code>algorithms</code> are configured for this connection and will be preserved. <a id="openSettings">Edit in settings.json</a></div></div>
-  <div class="row hidden" id="workspaceNote"><span></span><div class="hint">This connection is defined in the workspace settings.</div></div>
+  <legend>${e(vscode.l10n.t('Advanced'))}</legend>
+  <div class="row"><label for="connectTimeout">${e(vscode.l10n.t('Timeout (ms)'))}</label><input type="number" id="connectTimeout" min="1" placeholder="10000"></div>
+  <div class="row ftps-only"><label class="check"><input type="checkbox" id="implicitTls"> ${e(vscode.l10n.t('Implicit TLS (legacy, usually port 990)'))}</label></div>
+  <div class="row ftps-only"><label class="check"><input type="checkbox" id="rejectUnauthorized"> ${e(vscode.l10n.t('Verify TLS certificate'))}</label></div>
+  <div class="row sftp-only hidden" id="algorithmsNote"><span></span><div class="hint">${htmlFormat(
+      vscode.l10n.t('Custom {0} are configured for this connection and will be preserved.', '{0}'),
+      '<code>algorithms</code>'
+    )} <a id="openSettings">${e(vscode.l10n.t('Edit in settings.json'))}</a></div></div>
+  <div class="row hidden" id="workspaceNote"><span></span><div class="hint">${e(vscode.l10n.t('This connection is defined in the workspace settings.'))}</div></div>
 </fieldset>
 
 <div id="status"></div>
 <div class="actions">
-  <button type="submit" id="save">Save</button>
-  <button type="button" class="secondary" id="test">Test Connection</button>
+  <button type="submit" id="save">${e(vscode.l10n.t('Save'))}</button>
+  <button type="button" class="secondary" id="test">${e(vscode.l10n.t('Test Connection'))}</button>
   <span class="spacer"></span>
-  <button type="button" class="secondary" id="cancel">Cancel</button>
+  <button type="button" class="secondary" id="cancel">${e(vscode.l10n.t('Cancel'))}</button>
 </div>
 </form>
 
@@ -469,6 +515,7 @@ export class ConnectionEditor {
   const $ = id => document.getElementById(id);
   const textFields = ['name', 'label', 'host', 'port', 'username', 'rootPath', 'connectTimeout', 'password', 'privateKeyPath', 'passphrase', 'agent'];
   const checkFields = ['savePassword', 'forgetPassword', 'forgetPassphrase', 'interactiveAuth', 'implicitTls', 'rejectUnauthorized'];
+  const L = ${scriptStrings};
   let meta = {};
 
   function auth() {
@@ -498,7 +545,7 @@ export class ConnectionEditor {
     show('.auth-agent', sftp && a === 'agent');
     $('algorithmsNote').classList.toggle('hidden', !(sftp && meta.hasAlgorithms));
     $('port').placeholder = sftp ? '22' : (scheme === 'ftps' && $('implicitTls').checked ? '990' : '21');
-    $('namePreview').textContent = ($('name').value || 'name').toLowerCase();
+    $('namePreview').textContent = ($('name').value || L.namePlaceholder).toLowerCase();
     $('savePassword').disabled = !$('password').value;
   }
 
@@ -521,17 +568,17 @@ export class ConnectionEditor {
       checkFields.forEach(f => $(f).checked = !!d[f]);
       $('scheme').value = d.scheme;
       document.querySelectorAll('input[name=auth]').forEach(r => r.checked = r.value === d.auth);
-      $('title').textContent = meta.isNew ? 'New Connection' : 'Edit Connection — ' + d.name;
+      $('title').textContent = meta.isNew ? L.newConnection : L.editConnection.replace('{0}', () => d.name);
       $('forgetPasswordRow').classList.toggle('hidden', !meta.hasSavedPassword);
       $('forgetPassphraseRow').classList.toggle('hidden', !meta.hasSavedPassphrase);
       $('plaintextNote').classList.toggle('hidden', !meta.plaintextPassword);
       $('workspaceNote').classList.toggle('hidden', !meta.workspaceScoped);
       if (meta.hasSavedPassword) {
-        $('password').placeholder = '•••••••• (saved in keychain — type to replace)';
-        $('passwordHint').textContent = 'A password is saved in the keychain.';
+        $('password').placeholder = L.savedPlaceholder;
+        $('passwordHint').textContent = L.passwordSaved;
       }
       if (meta.hasSavedPassphrase) {
-        $('passphrase').placeholder = '•••••••• (saved in keychain — type to replace)';
+        $('passphrase').placeholder = L.savedPlaceholder;
       }
       update();
       $(meta.isNew ? 'name' : 'host').focus();
@@ -548,7 +595,7 @@ export class ConnectionEditor {
   $('form').addEventListener('submit', e => {
     e.preventDefault();
     setBusy(true);
-    setStatus('busy', 'Saving…');
+    setStatus('busy', L.saving);
     vscode.postMessage({ type: 'save', data: collect() });
   });
   $('test').addEventListener('click', () => vscode.postMessage({ type: 'test', data: collect() }));

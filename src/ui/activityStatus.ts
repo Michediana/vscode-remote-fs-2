@@ -22,6 +22,10 @@ function formatTime(at?: number) {
   return at ? new Date(at).toLocaleTimeString() : '—';
 }
 
+function opsText(n: number) {
+  return n === 1 ? vscode.l10n.t('{0} op', n) : vscode.l10n.t('{0} ops', n);
+}
+
 /** Escapes text placed in a Markdown tooltip. */
 function md(text: string) {
   return text.replace(/[\\`*_{}[\]()#+\-.!|<>]/g, '\\$&');
@@ -40,7 +44,7 @@ export class ActivityStatus implements vscode.Disposable {
     private readonly manager: ConnectionManager,
     private readonly activity: ActivityTracker
   ) {
-    this.item.name = 'Remote FS 2 Activity';
+    this.item.name = vscode.l10n.t('Remote FS 2 Activity');
     this.item.command = 'remotefs.showActivity';
     const update = () => this.update();
     this.disposables.push(
@@ -99,18 +103,28 @@ export class ActivityStatus implements vscode.Disposable {
       } else if (state.status === 'error') {
         failed.push(conn.name);
       }
-      const status = { connected: 'connected', connecting: 'connecting…', error: 'error', idle: 'not connected' }[state.status];
-      tooltip.appendMarkdown(`| ${icon} **${md(conn.name)}** | ${status}${a.inflight ? ` · ${a.inflight} in progress` : ''} |\n`);
-      tooltip.appendMarkdown(`| | $(arrow-down) ${formatBytes(a.down)} · $(arrow-up) ${formatBytes(a.up)} · ${a.ops} ops |\n`);
+      const status = {
+        connected: vscode.l10n.t('connected'),
+        connecting: vscode.l10n.t('connecting…'),
+        error: vscode.l10n.t('error'),
+        idle: vscode.l10n.t('not connected'),
+      }[state.status];
+      const progress = a.inflight ? ` · ${vscode.l10n.t('{0} in progress', a.inflight)}` : '';
+      tooltip.appendMarkdown(`| ${icon} **${md(conn.name)}** | ${status}${progress} |\n`);
+      tooltip.appendMarkdown(
+        `| | $(arrow-down) ${formatBytes(a.down)} · $(arrow-up) ${formatBytes(a.up)} · ${opsText(a.ops)} |\n`
+      );
       if (a.lastOp) {
-        tooltip.appendMarkdown(`| | last: \`${md(a.lastOp)}\` at ${formatTime(a.lastAt)} |\n`);
+        tooltip.appendMarkdown(
+          `| | ${vscode.l10n.t('last: {0} at {1}', `\`${md(a.lastOp)}\``, formatTime(a.lastAt))} |\n`
+        );
       }
       const error = state.status === 'error' ? state.error : a.lastError;
       if (error) {
         tooltip.appendMarkdown(`| | $(warning) ${md(error)} (${formatTime(state.status === 'error' ? undefined : a.lastErrorAt)}) |\n`);
       }
     }
-    tooltip.appendMarkdown('\nClick for actions (refresh, log, disconnect).');
+    tooltip.appendMarkdown(`\n${vscode.l10n.t('Click for actions (refresh, log, disconnect).')}`);
 
     const label = conns.length === 1 ? conns[0].name : `${connected}/${conns.length}`;
     if (connecting) {
@@ -133,24 +147,24 @@ export class ActivityStatus implements vscode.Disposable {
   async showActions() {
     type Item = vscode.QuickPickItem & { run?: () => unknown };
     const items: Item[] = [
-      { label: '$(refresh) Refresh Remote Folders', run: () => vscode.commands.executeCommand('remotefs.refresh') },
-      { label: '$(output) Show Log', run: () => vscode.commands.executeCommand('remotefs.showLog') },
+      { label: `$(refresh) ${vscode.l10n.t('Refresh Remote Folders')}`, run: () => vscode.commands.executeCommand('remotefs.refresh') },
+      { label: `$(output) ${vscode.l10n.t('Show Log')}`, run: () => vscode.commands.executeCommand('remotefs.showLog') },
     ];
     const conns = this.connections();
     if (conns.length) {
-      items.push({ label: 'Connections', kind: vscode.QuickPickItemKind.Separator });
+      items.push({ label: vscode.l10n.t('Connections'), kind: vscode.QuickPickItemKind.Separator });
       for (const conn of conns) {
         const a = this.activity.get(conn.id);
         const status = this.manager.getState(conn.id).status;
         if (status === 'connected' || status === 'connecting') {
           items.push({
-            label: `$(debug-disconnect) Disconnect ${conn.name}`,
-            description: `↓ ${formatBytes(a.down)} ↑ ${formatBytes(a.up)} · ${a.ops} ops`,
+            label: `$(debug-disconnect) ${vscode.l10n.t('Disconnect {0}', conn.name)}`,
+            description: `↓ ${formatBytes(a.down)} ↑ ${formatBytes(a.up)} · ${opsText(a.ops)}`,
             run: () => this.manager.disconnect(conn.id),
           });
         } else {
           items.push({
-            label: `$(plug) Connect ${conn.name}`,
+            label: `$(plug) ${vscode.l10n.t('Connect {0}', conn.name)}`,
             description: status === 'error' ? this.manager.getState(conn.id).error : undefined,
             run: async () => {
               try {

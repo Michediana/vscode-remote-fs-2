@@ -14,9 +14,19 @@ import {
   parseExport,
 } from '../transfer';
 
-const TITLE = 'Remote FS 2';
 const MIN_PASSPHRASE = 8;
-const FILE_FILTERS = { 'Remote FS 2 connections': ['json'] };
+
+function fileFilters(): Record<string, string[]> {
+  return { [vscode.l10n.t('Remote FS 2 connections')]: ['json'] };
+}
+
+function exportTitle() {
+  return vscode.l10n.t('Remote FS 2: Export Connections');
+}
+
+function importTitle() {
+  return vscode.l10n.t('Remote FS 2: Import Connections');
+}
 
 function expandHome(p: string) {
   return p.startsWith('~') ? path.join(os.homedir(), p.slice(1)) : p;
@@ -24,21 +34,23 @@ function expandHome(p: string) {
 
 async function askNewPassphrase(): Promise<string | undefined> {
   const first = await vscode.window.showInputBox({
-    title: `${TITLE}: Export Connections`,
-    prompt: 'Passphrase used to encrypt the passwords. Send it to the recipient over a different channel than the file.',
+    title: exportTitle(),
+    prompt: vscode.l10n.t(
+      'Passphrase used to encrypt the passwords. Send it to the recipient over a different channel than the file.'
+    ),
     password: true,
     ignoreFocusOut: true,
-    validateInput: v => (v.length < MIN_PASSPHRASE ? `At least ${MIN_PASSPHRASE} characters.` : undefined),
+    validateInput: v => (v.length < MIN_PASSPHRASE ? vscode.l10n.t('At least {0} characters.', MIN_PASSPHRASE) : undefined),
   });
   if (first === undefined) {
     return undefined;
   }
   const second = await vscode.window.showInputBox({
-    title: `${TITLE}: Export Connections`,
-    prompt: 'Repeat the passphrase.',
+    title: exportTitle(),
+    prompt: vscode.l10n.t('Repeat the passphrase.'),
     password: true,
     ignoreFocusOut: true,
-    validateInput: v => (v !== first ? 'The passphrases do not match.' : undefined),
+    validateInput: v => (v !== first ? vscode.l10n.t('The passphrases do not match.') : undefined),
   });
   return second === undefined ? undefined : first;
 }
@@ -46,7 +58,7 @@ async function askNewPassphrase(): Promise<string | undefined> {
 export async function exportConnections(store: ConnectionStore, preselected?: string) {
   const conns = store.list();
   if (!conns.length) {
-    vscode.window.showInformationMessage(`${TITLE}: no connections to export.`);
+    vscode.window.showInformationMessage(vscode.l10n.t('Remote FS 2: no connections to export.'));
     return;
   }
 
@@ -57,7 +69,12 @@ export async function exportConnections(store: ConnectionStore, preselected?: st
       picked: preselected ? conn.id === preselected : true,
       conn,
     })),
-    { title: `${TITLE}: Export Connections`, placeHolder: 'Connections to export', canPickMany: true, ignoreFocusOut: true }
+    {
+      title: exportTitle(),
+      placeHolder: vscode.l10n.t('Connections to export'),
+      canPickMany: true,
+      ignoreFocusOut: true,
+    }
   );
   if (!picked?.length) {
     return;
@@ -65,24 +82,26 @@ export async function exportConnections(store: ConnectionStore, preselected?: st
 
   const modes: Array<vscode.QuickPickItem & { mode: SecretsMode }> = [
     {
-      label: '$(lock) Include passwords, encrypted',
-      detail: 'Passwords and key passphrases are encrypted with a passphrase you choose. Recommended for sharing.',
+      label: '$(lock) ' + vscode.l10n.t('Include passwords, encrypted'),
+      detail: vscode.l10n.t('Passwords and key passphrases are encrypted with a passphrase you choose. Recommended for sharing.'),
       mode: 'encrypted',
     },
     {
-      label: '$(circle-slash) Without passwords',
-      detail: 'The recipient enters the credentials on the first connection.',
+      label: '$(circle-slash) ' + vscode.l10n.t('Without passwords'),
+      detail: vscode.l10n.t('The recipient enters the credentials on the first connection.'),
       mode: 'none',
     },
     {
-      label: '$(warning) Include passwords in plain text',
-      detail: 'Anyone who gets the file can read them. Use only over a secure channel and delete the file afterwards.',
+      label: '$(warning) ' + vscode.l10n.t('Include passwords in plain text'),
+      detail: vscode.l10n.t(
+        'Anyone who gets the file can read them. Use only over a secure channel and delete the file afterwards.'
+      ),
       mode: 'plain',
     },
   ];
   const mode = await vscode.window.showQuickPick(modes, {
-    title: `${TITLE}: Export Connections`,
-    placeHolder: 'Passwords and key passphrases',
+    title: exportTitle(),
+    placeHolder: vscode.l10n.t('Passwords and key passphrases'),
     ignoreFocusOut: true,
   });
   if (!mode) {
@@ -100,9 +119,9 @@ export async function exportConnections(store: ConnectionStore, preselected?: st
   const defaultName = picked.length === 1 ? `${picked[0].conn.name}.remotefs.json` : 'connections.remotefs.json';
   const baseDir = vscode.workspace.workspaceFolders?.find(f => f.uri.scheme === 'file')?.uri ?? vscode.Uri.file(os.homedir());
   const target = await vscode.window.showSaveDialog({
-    title: `${TITLE}: Export Connections`,
+    title: exportTitle(),
     defaultUri: vscode.Uri.joinPath(baseDir, defaultName),
-    filters: FILE_FILTERS,
+    filters: fileFilters(),
   });
   if (!target) {
     return;
@@ -123,11 +142,26 @@ export async function exportConnections(store: ConnectionStore, preselected?: st
     const withSecrets =
       mode.mode === 'none' ? 'without passwords' : mode.mode === 'encrypted' ? 'with encrypted passwords' : 'with PLAIN-TEXT passwords';
     logger.info(`Exported ${entries.length} connection(s) ${withSecrets} to ${target.fsPath}`);
-    vscode.window.showInformationMessage(
-      `${TITLE}: exported ${entries.length} connection(s) ${withSecrets} to ${path.basename(target.fsPath)}.`
-    );
+    const n = entries.length;
+    const fileName = path.basename(target.fsPath);
+    const one = n === 1;
+    let message: string;
+    if (mode.mode === 'none') {
+      message = one
+        ? vscode.l10n.t('Remote FS 2: exported {0} connection without passwords to {1}.', n, fileName)
+        : vscode.l10n.t('Remote FS 2: exported {0} connections without passwords to {1}.', n, fileName);
+    } else if (mode.mode === 'encrypted') {
+      message = one
+        ? vscode.l10n.t('Remote FS 2: exported {0} connection with encrypted passwords to {1}.', n, fileName)
+        : vscode.l10n.t('Remote FS 2: exported {0} connections with encrypted passwords to {1}.', n, fileName);
+    } else {
+      message = one
+        ? vscode.l10n.t('Remote FS 2: exported {0} connection with PLAIN-TEXT passwords to {1}.', n, fileName)
+        : vscode.l10n.t('Remote FS 2: exported {0} connections with PLAIN-TEXT passwords to {1}.', n, fileName);
+    }
+    vscode.window.showInformationMessage(message);
   } catch (err) {
-    vscode.window.showErrorMessage(`${TITLE}: export failed: ${errorMessage(err)}`);
+    vscode.window.showErrorMessage(vscode.l10n.t('Remote FS 2: export failed: {0}', transferErrorMessage(err)));
   }
 }
 
@@ -137,9 +171,9 @@ async function askDecryption(
   let error: string | undefined;
   for (;;) {
     const passphrase = await vscode.window.showInputBox({
-      title: `${TITLE}: Import Connections`,
-      prompt: error ?? 'The passwords in this file are encrypted: enter the passphrase chosen at export.',
-      placeHolder: 'Leave empty to import without passwords',
+      title: importTitle(),
+      prompt: error ?? vscode.l10n.t('The passwords in this file are encrypted: enter the passphrase chosen at export.'),
+      placeHolder: vscode.l10n.t('Leave empty to import without passwords'),
       password: true,
       ignoreFocusOut: true,
     });
@@ -155,17 +189,17 @@ async function askDecryption(
       if (!(err instanceof WrongPassphraseError)) {
         throw err;
       }
-      error = 'Wrong passphrase, try again (or leave empty to import without passwords).';
+      error = vscode.l10n.t('Wrong passphrase, try again (or leave empty to import without passwords).');
     }
   }
 }
 
 export async function importConnections(store: ConnectionStore) {
   const files = await vscode.window.showOpenDialog({
-    title: `${TITLE}: Import Connections`,
+    title: importTitle(),
     canSelectMany: false,
-    filters: { ...FILE_FILTERS, 'All files': ['*'] },
-    openLabel: 'Import',
+    filters: { ...fileFilters(), [vscode.l10n.t('All files')]: ['*'] },
+    openLabel: vscode.l10n.t('Import'),
   });
   if (!files?.length) {
     return;
@@ -174,7 +208,7 @@ export async function importConnections(store: ConnectionStore) {
   try {
     const parsed = parseExport(Buffer.from(await vscode.workspace.fs.readFile(files[0])).toString('utf8'));
     if (!parsed.entries.length) {
-      vscode.window.showWarningMessage(`${TITLE}: the file contains no valid connections.`);
+      vscode.window.showWarningMessage(vscode.l10n.t('Remote FS 2: the file contains no valid connections.'));
       return;
     }
 
@@ -186,12 +220,19 @@ export async function importConnections(store: ConnectionStore) {
         return {
           label: entry.config.label || entry.name,
           description: `${entry.config.scheme}://${user}${entry.config.host}${entry.config.rootPath ?? '/'}`,
-          detail: exists ? `$(warning) A connection named "${entry.name}" already exists` : undefined,
+          detail: exists
+            ? '$(warning) ' + vscode.l10n.t('A connection named "{0}" already exists', entry.name)
+            : undefined,
           picked: true,
           entry,
         };
       }),
-      { title: `${TITLE}: Import Connections`, placeHolder: 'Connections to import', canPickMany: true, ignoreFocusOut: true }
+      {
+        title: importTitle(),
+        placeHolder: vscode.l10n.t('Connections to import'),
+        canPickMany: true,
+        ignoreFocusOut: true,
+      }
     );
     if (!picked?.length) {
       return;
@@ -202,13 +243,32 @@ export async function importConnections(store: ConnectionStore) {
     if (conflicts.length) {
       const choice = await vscode.window.showQuickPick(
         [
-          { label: 'Overwrite', detail: 'Replace the existing connections with the imported ones.', value: 'overwrite' as const },
-          { label: 'Keep both', detail: 'Import them with a new name (e.g. "server-2").', value: 'rename' as const },
-          { label: 'Skip', detail: 'Keep the existing connections, import only the new ones.', value: 'skip' as const },
+          {
+            label: vscode.l10n.t('Overwrite'),
+            detail: vscode.l10n.t('Replace the existing connections with the imported ones.'),
+            value: 'overwrite' as const,
+          },
+          {
+            label: vscode.l10n.t('Keep both'),
+            detail: vscode.l10n.t('Import them with a new name (e.g. "server-2").'),
+            value: 'rename' as const,
+          },
+          {
+            label: vscode.l10n.t('Skip'),
+            detail: vscode.l10n.t('Keep the existing connections, import only the new ones.'),
+            value: 'skip' as const,
+          },
         ],
         {
-          title: `${TITLE}: Import Connections`,
-          placeHolder: `${conflicts.length} connection(s) already exist: ${conflicts.map(c => c.entry.name).join(', ')}`,
+          title: importTitle(),
+          placeHolder:
+            conflicts.length === 1
+              ? vscode.l10n.t('{0} connection already exists: {1}', conflicts.length, conflicts[0].entry.name)
+              : vscode.l10n.t(
+                  '{0} connections already exist: {1}',
+                  conflicts.length,
+                  conflicts.map(c => c.entry.name).join(', ')
+                ),
           ignoreFocusOut: true,
         }
       );
@@ -222,14 +282,18 @@ export async function importConnections(store: ConnectionStore) {
     if (vscode.workspace.workspaceFolders?.length && vscode.workspace.isTrusted) {
       const where = await vscode.window.showQuickPick(
         [
-          { label: 'User settings', detail: 'Available in every window.', target: vscode.ConfigurationTarget.Global },
           {
-            label: 'Workspace settings',
-            detail: 'Only in this workspace (.vscode/settings.json, can be shared with the project).',
+            label: vscode.l10n.t('User settings'),
+            detail: vscode.l10n.t('Available in every window.'),
+            target: vscode.ConfigurationTarget.Global,
+          },
+          {
+            label: vscode.l10n.t('Workspace settings'),
+            detail: vscode.l10n.t('Only in this workspace (.vscode/settings.json, can be shared with the project).'),
             target: vscode.ConfigurationTarget.Workspace,
           },
         ],
-        { title: `${TITLE}: Import Connections`, placeHolder: 'Where to save the connections', ignoreFocusOut: true }
+        { title: importTitle(), placeHolder: vscode.l10n.t('Where to save the connections'), ignoreFocusOut: true }
       );
       if (!where) {
         return;
@@ -284,20 +348,48 @@ export async function importConnections(store: ConnectionStore) {
     }
 
     logger.info(`Imported ${imported.length} connection(s) from ${files[0].fsPath}: ${imported.join(', ')}`);
-    const parts = [`${TITLE}: imported ${imported.length} connection(s)`];
+    const parts = [
+      imported.length === 1
+        ? vscode.l10n.t('Remote FS 2: imported {0} connection', imported.length)
+        : vscode.l10n.t('Remote FS 2: imported {0} connections', imported.length),
+    ];
     if (secretsSaved) {
-      parts.push('passwords saved in the keychain');
+      parts.push(vscode.l10n.t('passwords saved in the keychain'));
     }
     if (parsed.invalid.length) {
-      parts.push(`skipped invalid entries: ${parsed.invalid.join(', ')}`);
+      parts.push(vscode.l10n.t('skipped invalid entries: {0}', parsed.invalid.join(', ')));
     }
     vscode.window.showInformationMessage(parts.join('; ') + '.');
     if (missingKeys.length) {
       vscode.window.showWarningMessage(
-        `${TITLE}: the private key file of ${missingKeys.join(', ')} does not exist on this computer: edit the connection to set yours.`
+        vscode.l10n.t(
+          'Remote FS 2: the private key file of {0} does not exist on this computer: edit the connection to set yours.',
+          missingKeys.join(', ')
+        )
       );
     }
   } catch (err) {
-    vscode.window.showErrorMessage(`${TITLE}: import failed: ${errorMessage(err)}`);
+    vscode.window.showErrorMessage(vscode.l10n.t('Remote FS 2: import failed: {0}', transferErrorMessage(err)));
+  }
+}
+
+/** Translates the errors raised by ../transfer (kept in English there, since it runs under plain node in tests). */
+function transferErrorMessage(err: unknown): string {
+  const msg = errorMessage(err);
+  switch (msg) {
+    case 'Unsupported encryption parameters.':
+      return vscode.l10n.t('Unsupported encryption parameters.');
+    case 'A passphrase is required to encrypt the secrets.':
+      return vscode.l10n.t('A passphrase is required to encrypt the secrets.');
+    case 'The file is not valid JSON.':
+      return vscode.l10n.t('The file is not valid JSON.');
+    case 'The file is not a Remote FS 2 connections export.':
+      return vscode.l10n.t('The file is not a Remote FS 2 connections export.');
+    case 'The file was created by a newer version of Remote FS 2: update the extension.':
+      return vscode.l10n.t('The file was created by a newer version of Remote FS 2: update the extension.');
+    case 'The encrypted secrets are missing from the file.':
+      return vscode.l10n.t('The encrypted secrets are missing from the file.');
+    default:
+      return msg;
   }
 }

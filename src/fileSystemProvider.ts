@@ -72,7 +72,7 @@ export class RemoteFileSystemProvider implements vscode.FileSystemProvider, vsco
     const conn = this.store.get(connectionId(uri.authority));
     if (!conn) {
       throw vscode.FileSystemError.Unavailable(
-        `Unknown remote "${uri.authority}". Add it from the Remote FS 2 view.`
+        vscode.l10n.t('Unknown remote "{0}". Add it from the Remote FS 2 view.', uri.authority)
       );
     }
     return conn;
@@ -256,7 +256,7 @@ export class RemoteFileSystemProvider implements vscode.FileSystemProvider, vsco
   async rename(oldUri: vscode.Uri, newUri: vscode.Uri, options: { overwrite: boolean }): Promise<void> {
     if (connectionId(oldUri.authority) !== connectionId(newUri.authority) || oldUri.scheme !== newUri.scheme) {
       // VS Code falls back to copy + delete across providers/connections
-      throw vscode.FileSystemError.Unavailable('Cannot rename across different remotes');
+      throw vscode.FileSystemError.Unavailable(vscode.l10n.t('Cannot rename across different remotes'));
     }
     await this.run(oldUri, 'rename', async (client, from) => {
       const conn = this.connectionFor(newUri);

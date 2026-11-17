@@ -1,7 +1,7 @@
 {
   "name": "remotefs",
   "displayName": "Remote FS 2",
-  "description": "Work with files on SFTP/FTP servers as if they were local, with a connection manager UI.",
+  "description": "%description%",
   "version": "0.3.1",
   "publisher": "michediana",
   "author": "Michele Diana",
@@ -26,6 +26,7 @@
   ],
   "icon": "icon.png",
   "main": "./out/extension.js",
+  "l10n": "./l10n",
   "activationEvents": [
     "onFileSystem:sftp",
     "onFileSystem:ftp",
@@ -35,7 +36,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "Connections defined in workspace settings are ignored in untrusted workspaces.",
+      "description": "%capabilities.untrusted%",
       "restrictedConfigurations": [
         "remotefs.remote"
       ]
@@ -56,7 +57,7 @@
       "remotefs": [
         {
           "id": "remotefs.connections",
-          "name": "Connections",
+          "name": "%view.connections%",
           "icon": "$(server-environment)",
           "contextualTitle": "Remote FS 2"
         }
@@ -65,146 +66,146 @@
     "viewsWelcome": [
       {
         "view": "remotefs.connections",
-        "contents": "No remote connections configured yet.\n[Add Connection](command:remotefs.addConnection)\n[Import Connections](command:remotefs.importConnections)\nConnections are stored in the `remotefs.remote` setting; passwords are kept in the OS keychain."
+        "contents": "%view.connections.welcome%"
       }
     ],
     "commands": [
       {
         "command": "remotefs.addFolderToWorkspace",
-        "title": "Add Folder to Workspace",
+        "title": "%command.addFolderToWorkspace%",
         "category": "Remote FS 2",
         "icon": "$(add)"
       },
       {
         "command": "remotefs.openMirror",
-        "title": "Open Local Mirror (for AI agents)",
+        "title": "%command.openMirror%",
         "category": "Remote FS 2",
         "icon": "$(cloud-download)"
       },
       {
         "command": "remotefs.downloadMirrorFolder",
-        "title": "Download Folder from Server",
+        "title": "%command.downloadMirrorFolder%",
         "category": "Remote FS 2",
         "icon": "$(cloud-download)"
       },
       {
         "command": "remotefs.syncMirror",
-        "title": "Sync Local Mirror Now",
+        "title": "%command.syncMirror%",
         "category": "Remote FS 2",
         "icon": "$(sync)"
       },
       {
         "command": "remotefs.resolveMirrorConflicts",
-        "title": "Resolve Local Mirror Conflicts",
+        "title": "%command.resolveMirrorConflicts%",
         "category": "Remote FS 2"
       },
       {
         "command": "remotefs.unlinkMirror",
-        "title": "Stop Syncing Local Mirror",
+        "title": "%command.unlinkMirror%",
         "category": "Remote FS 2"
       },
       {
         "command": "remotefs.openSettings",
-        "title": "Open Settings",
+        "title": "%command.openSettings%",
         "category": "Remote FS 2",
         "icon": "$(gear)"
       },
       {
         "command": "remotefs.showActivity",
-        "title": "Show Connection Activity",
+        "title": "%command.showActivity%",
         "category": "Remote FS 2",
         "icon": "$(pulse)"
       },
       {
         "command": "remotefs.addConnection",
-        "title": "Add Connection",
+        "title": "%command.addConnection%",
         "category": "Remote FS 2",
         "icon": "$(add)"
       },
       {
         "command": "remotefs.editConnection",
-        "title": "Edit Connection",
+        "title": "%command.editConnection%",
         "category": "Remote FS 2",
         "icon": "$(edit)"
       },
       {
         "command": "remotefs.duplicateConnection",
-        "title": "Duplicate Connection",
+        "title": "%command.duplicateConnection%",
         "category": "Remote FS 2"
       },
       {
         "command": "remotefs.deleteConnection",
-        "title": "Delete Connection",
+        "title": "%command.deleteConnection%",
         "category": "Remote FS 2",
         "icon": "$(trash)"
       },
       {
         "command": "remotefs.openInWorkspace",
-        "title": "Add to Workspace",
+        "title": "%command.openInWorkspace%",
         "category": "Remote FS 2",
         "icon": "$(folder-opened)"
       },
       {
         "command": "remotefs.openInNewWindow",
-        "title": "Open in New Window",
+        "title": "%command.openInNewWindow%",
         "category": "Remote FS 2",
         "icon": "$(empty-window)"
       },
       {
         "command": "remotefs.openInCurrentWindow",
-        "title": "Open in Current Window",
+        "title": "%command.openInCurrentWindow%",
         "category": "Remote FS 2"
       },
       {
         "command": "remotefs.testConnection",
-        "title": "Test Connection",
+        "title": "%command.testConnection%",
         "category": "Remote FS 2",
         "icon": "$(debug-alt-small)"
       },
       {
         "command": "remotefs.disconnect",
-        "title": "Disconnect",
+        "title": "%command.disconnect%",
         "category": "Remote FS 2",
         "icon": "$(debug-disconnect)"
       },
       {
         "command": "remotefs.disconnectAll",
-        "title": "Disconnect All",
+        "title": "%command.disconnectAll%",
         "category": "Remote FS 2",
         "icon": "$(debug-disconnect)"
       },
       {
         "command": "remotefs.forgetPassword",
-        "title": "Forget Saved Password",
+        "title": "%command.forgetPassword%",
         "category": "Remote FS 2"
       },
       {
         "command": "remotefs.refresh",
-        "title": "Refresh",
+        "title": "%command.refresh%",
         "category": "Remote FS 2",
         "icon": "$(refresh)"
       },
       {
         "command": "remotefs.exportConnections",
-        "title": "Export Connections…",
+        "title": "%command.exportConnections%",
         "category": "Remote FS 2",
         "icon": "$(export)"
       },
       {
         "command": "remotefs.importConnections",
-        "title": "Import Connections…",
+        "title": "%command.importConnections%",
         "category": "Remote FS 2",
         "icon": "$(cloud-upload)"
       },
       {
         "command": "remotefs.openSettingsJson",
-        "title": "Edit Connections in settings.json",
+        "title": "%command.openSettingsJson%",
         "category": "Remote FS 2",
         "icon": "$(json)"
       },
       {
         "command": "remotefs.showLog",
-        "title": "Show Log",
+        "title": "%command.showLog%",
         "category": "Remote FS 2",
         "icon": "$(output)"
       }
@@ -367,12 +368,12 @@
       "properties": {
         "remotefs.rootLabel": {
           "type": "string",
-          "markdownDescription": "Label of the workspace folder added for a remote. With the default label, ` — <folder>` is appended for a subfolder and ` (remote)` always, to tell it apart from local mirrors (labelled ` (local mirror)`).\n- `${label}`: display label of the connection (falls back to its name).\n- `${name}`: name of the connection.\n- `${folderName}`: last segment of the remote folder.\n- `${path}`: full remote path of the folder.",
+          "markdownDescription": "%config.rootLabel%",
           "default": "${label}"
         },
         "remotefs.remote": {
           "type": "object",
-          "markdownDescription": "Remote connections (key = connection name, used as `<scheme>://<name>/` URI authority). Prefer the **Remote FS 2** view in the Activity Bar to manage them.",
+          "markdownDescription": "%config.remote%",
           "default": {},
           "additionalProperties": {
             "type": "object",
@@ -388,61 +389,61 @@
                   "ftp",
                   "ftps"
                 ],
-                "description": "Protocol."
+                "description": "%config.remote.scheme%"
               },
               "label": {
                 "type": "string",
-                "description": "Optional display label."
+                "description": "%config.remote.label%"
               },
               "host": {
                 "type": "string",
-                "description": "Hostname or IP address of the server."
+                "description": "%config.remote.host%"
               },
               "port": {
                 "type": "number",
-                "description": "Port (default 22 for sftp, 21 for ftp/ftps)."
+                "description": "%config.remote.port%"
               },
               "username": {
                 "type": "string",
-                "description": "Username for authentication."
+                "description": "%config.remote.username%"
               },
               "password": {
                 "type": "string",
-                "description": "Plain-text password (discouraged: use the connection editor to store it in the OS keychain)."
+                "description": "%config.remote.password%"
               },
               "rootPath": {
                 "type": "string",
-                "description": "Absolute path on the remote used as root of the file system.",
+                "description": "%config.remote.rootPath%",
                 "default": "/"
               },
               "connectTimeout": {
                 "type": "number",
-                "description": "Connection timeout in milliseconds.",
+                "description": "%config.remote.connectTimeout%",
                 "default": 10000
               },
               "privateKeyPath": {
                 "type": "string",
-                "description": "(sftp) Path to the private key. `~` is expanded."
+                "description": "%config.remote.privateKeyPath%"
               },
               "passphrase": {
                 "type": [
                   "string",
                   "boolean"
                 ],
-                "description": "(sftp) Passphrase of the private key, or true to be prompted."
+                "description": "%config.remote.passphrase%"
               },
               "agent": {
                 "type": "string",
-                "description": "(sftp) Path to ssh-agent's socket, or 'pageant' on Windows. Use '$SSH_AUTH_SOCK' to read it from the environment."
+                "description": "%config.remote.agent%"
               },
               "interactiveAuth": {
                 "type": "boolean",
-                "description": "(sftp) Enable keyboard-interactive authentication (e.g. 2FA codes).",
+                "description": "%config.remote.interactiveAuth%",
                 "default": false
               },
               "algorithms": {
                 "type": "object",
-                "description": "(sftp) Overrides for the transport algorithms, passed to ssh2 as-is."
+                "description": "%config.remote.algorithms%"
               },
               "secure": {
                 "type": [
@@ -454,11 +455,11 @@
                   false,
                   "implicit"
                 ],
-                "description": "(ftp) true = explicit FTPS (AUTH TLS), 'implicit' = implicit FTPS. Same as using scheme 'ftps'."
+                "description": "%config.remote.secure%"
               },
               "rejectUnauthorized": {
                 "type": "boolean",
-                "description": "(ftps) Reject self-signed / invalid TLS certificates.",
+                "description": "%config.remote.rejectUnauthorized%",
                 "default": true
               }
             }
@@ -467,7 +468,7 @@
         "remotefs.mirror.baseFolder": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Folder where local mirrors are created by default (`<baseFolder>/<connection>/<remote path>`). Empty = `~/RemoteFS`."
+          "markdownDescription": "%config.mirror.baseFolder%"
         },
         "remotefs.mirror.exclude": {
           "type": "array",
@@ -480,13 +481,13 @@
             ".DS_Store",
             "Thumbs.db"
           ],
-          "markdownDescription": "Paths never synced by local mirrors. A pattern without `/` matches a name at any depth (`*.log`, `cache`); a pattern with `/` is relative to the mirror root (`wp-content/uploads`). `*`, `?` and `**` are supported."
+          "markdownDescription": "%config.mirror.exclude%"
         },
         "remotefs.mirror.maxFileSizeMB": {
           "type": "number",
           "default": 50,
           "minimum": 0,
-          "markdownDescription": "Files larger than this are not synced by local mirrors. `0` = no limit."
+          "markdownDescription": "%config.mirror.maxFileSizeMB%"
         },
         "remotefs.mirror.conflictResolution": {
           "type": "string",
@@ -496,18 +497,18 @@
             "ask"
           ],
           "enumDescriptions": [
-            "The server copy always wins: the local copy is replaced by the server one (or deleted when the file was deleted on the server).",
-            "The copy modified last wins, by date. A modification beats a deletion. When the server does not report the date, the server copy wins.",
-            "Nothing is overwritten: the conflict is reported, to resolve with Compare / Upload Local / Download Server Copy."
+            "%config.mirror.conflictResolution.server%",
+            "%config.mirror.conflictResolution.newest%",
+            "%config.mirror.conflictResolution.ask%"
           ],
           "default": "server",
-          "markdownDescription": "What a local mirror does with a file changed both locally and on the server (or changed on one side and deleted on the other). Changes made on one side only are always synced. A local copy replaced or deleted automatically is first saved in the extension storage (`conflict-backups`), see the log for the path. With `newest`, mind that FTP servers often report dates rounded to the minute or in their own time zone."
+          "markdownDescription": "%config.mirror.conflictResolution%"
         },
         "remotefs.mirror.autoSyncInterval": {
           "type": "number",
           "default": 0,
           "minimum": 0,
-          "markdownDescription": "Seconds between automatic syncs that also download changes made on the server in the folders already opened (minimum 30). `0` = only when the mirror is opened and on **Sync Local Mirror Now**. Local changes are always uploaded immediately."
+          "markdownDescription": "%config.mirror.autoSyncInterval%"
         }
       }
     }

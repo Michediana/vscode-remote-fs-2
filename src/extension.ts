@@ -31,11 +31,12 @@ async function warnIfOriginalInstalled() {
     return;
   }
   logger.warn(`${ORIGINAL_EXTENSION_ID} is enabled: it conflicts with Remote FS 2`);
-  const show = 'Show Original Extension';
+  const show = vscode.l10n.t('Show Original Extension');
   const answer = await vscode.window.showWarningMessage(
-    'Remote FS 2 replaces the original Remote FS extension (liximomo.remotefs), which is also enabled. ' +
-      'Both register the sftp:// and ftp:// file systems and the same commands, so they cannot work together. ' +
-      'Uninstall or disable the original, then reload the window. Your connections are kept.',
+    vscode.l10n.t(
+      'Remote FS 2 replaces the original Remote FS extension ({0}), which is also enabled. Both register the sftp:// and ftp:// file systems and the same commands, so they cannot work together. Uninstall or disable the original, then reload the window. Your connections are kept.',
+      ORIGINAL_EXTENSION_ID
+    ),
     show
   );
   if (answer === show) {
@@ -71,14 +72,17 @@ export function activate(context: vscode.ExtensionContext) {
     }
   }
 
-  async function pickConnection(node?: Node, placeHolder = 'Select a remote connection'): Promise<Connection | undefined> {
+  async function pickConnection(
+    node?: Node,
+    placeHolder = vscode.l10n.t('Select a remote connection')
+  ): Promise<Connection | undefined> {
     if (node) {
       return node.conn;
     }
     const conns = store.list();
     if (!conns.length) {
-      const add = 'Add Connection';
-      if ((await vscode.window.showInformationMessage('Remote FS 2: no connections configured.', add)) === add) {
+      const add = vscode.l10n.t('Add Connection');
+      if ((await vscode.window.showInformationMessage(vscode.l10n.t('Remote FS 2: no connections configured.'), add)) === add) {
         editConnection();
       }
       return undefined;
@@ -87,7 +91,7 @@ export function activate(context: vscode.ExtensionContext) {
       conns.map(conn => ({
         label: conn.config.label || conn.name,
         description: describeConnection(conn),
-        detail: manager.isConnected(conn.id) ? '$(vm-active) connected' : undefined,
+        detail: manager.isConnected(conn.id) ? `$(vm-active) ${vscode.l10n.t('connected')}` : undefined,
         conn,
       })),
       { placeHolder, matchOnDescription: true }
@@ -121,7 +125,7 @@ export function activate(context: vscode.ExtensionContext) {
     // appending (instead of inserting first) keeps the current first folder and avoids an extension host restart
     if (!vscode.workspace.updateWorkspaceFolders(count, 0, { uri, name })) {
       await context.globalState.update(PENDING_REVEAL, undefined);
-      vscode.window.showErrorMessage('Remote FS 2: could not add the folder to the workspace.');
+      vscode.window.showErrorMessage(vscode.l10n.t('Remote FS 2: could not add the folder to the workspace.'));
       return;
     }
     await context.globalState.update(PENDING_REVEAL, undefined);
@@ -252,12 +256,12 @@ export function activate(context: vscode.ExtensionContext) {
         // explorer context menu on an sftp:// / ftp:// folder
         const conn = store.get(target.authority);
         if (!conn) {
-          vscode.window.showErrorMessage(`Remote FS 2: unknown remote "${target.authority}".`);
+          vscode.window.showErrorMessage(vscode.l10n.t('Remote FS 2: unknown remote "{0}".', target.authority));
           return;
         }
         return mirrors.createMirror(conn, target.path || '/');
       }
-      const conn = await pickConnection(target, 'Select the remote to mirror locally');
+      const conn = await pickConnection(target, vscode.l10n.t('Select the remote to mirror locally'));
       if (conn) {
         await mirrors.createMirror(conn, '/');
       }
@@ -271,28 +275,31 @@ export function activate(context: vscode.ExtensionContext) {
     'remotefs.addConnection': () => editConnection(),
 
     'remotefs.editConnection': async (node?: Node) => {
-      const conn = await pickConnection(node, 'Select the connection to edit');
+      const conn = await pickConnection(node, vscode.l10n.t('Select the connection to edit'));
       if (conn) {
         editConnection(conn);
       }
     },
 
     'remotefs.duplicateConnection': async (node?: Node) => {
-      const conn = await pickConnection(node, 'Select the connection to duplicate');
+      const conn = await pickConnection(node, vscode.l10n.t('Select the connection to duplicate'));
       if (conn) {
         editConnection(conn, true);
       }
     },
 
     'remotefs.deleteConnection': async (node?: Node) => {
-      const conn = await pickConnection(node, 'Select the connection to delete');
+      const conn = await pickConnection(node, vscode.l10n.t('Select the connection to delete'));
       if (!conn) {
         return;
       }
-      const del = 'Delete';
+      const del = vscode.l10n.t('Delete');
       const answer = await vscode.window.showWarningMessage(
-        `Delete the connection "${conn.name}"?`,
-        { modal: true, detail: `${describeConnection(conn)}\n\nIts saved password/passphrase will be removed from the keychain. Files on the server are not touched.` },
+        vscode.l10n.t('Delete the connection "{0}"?', conn.name),
+        {
+          modal: true,
+          detail: `${describeConnection(conn)}\n\n${vscode.l10n.t('Its saved password/passphrase will be removed from the keychain. Files on the server are not touched.')}`,
+        },
         del
       );
       if (answer !== del) {
@@ -306,20 +313,26 @@ export function activate(context: vscode.ExtensionContext) {
     'remotefs.importConnections': () => importConnections(store),
 
     'remotefs.testConnection': async (node?: Node) => {
-      const conn = await pickConnection(node, 'Select the connection to test');
+      const conn = await pickConnection(node, vscode.l10n.t('Select the connection to test'));
       if (!conn) {
         return;
       }
       manager.disconnect(conn.id);
       await vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: `Remote FS 2: connecting to ${conn.name}…` },
+        { location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('Remote FS 2: connecting to {0}…', conn.name) },
         async () => {
           const started = Date.now();
           try {
             await manager.getClient(conn, { retryNow: true });
             const entries = await vscode.workspace.fs.readDirectory(rootUri(conn));
             vscode.window.showInformationMessage(
-              `Remote FS 2: connected to ${conn.name} in ${Date.now() - started} ms (${entries.length} entries in ${conn.rootPath}).`
+              vscode.l10n.t(
+                'Remote FS 2: connected to {0} in {1} ms ({2} entries in {3}).',
+                conn.name,
+                Date.now() - started,
+                entries.length,
+                conn.rootPath
+              )
             );
           } catch (err) {
             // connection failures are already notified by the manager
@@ -330,7 +343,7 @@ export function activate(context: vscode.ExtensionContext) {
     },
 
     'remotefs.disconnect': async (node?: Node) => {
-      const conn = node?.conn ?? (await pickConnection(undefined, 'Select the connection to close'));
+      const conn = node?.conn ?? (await pickConnection(undefined, vscode.l10n.t('Select the connection to close')));
       if (conn) {
         disconnect([conn.id]);
       }
@@ -349,7 +362,7 @@ export function activate(context: vscode.ExtensionContext) {
       await store.deleteSecret(conn.id, 'password');
       await store.deleteSecret(conn.id, 'passphrase');
       manager.disconnect(conn.id);
-      vscode.window.showInformationMessage(`Remote FS 2: saved credentials of "${conn.name}" removed.`);
+      vscode.window.showInformationMessage(vscode.l10n.t('Remote FS 2: saved credentials of "{0}" removed.', conn.name));
     },
 
     'remotefs.refresh': (node?: Node) => {
