@@ -1,6 +1,7 @@
 ## 0.1.0 - 2026-11-17
+* First release of the **Remote FS 2** fork (publisher `michediana`), based on liximomo/vscode-remote-fs 0.0.16.
 * Requires VS Code 1.90+. Rewritten on current APIs (`@types/vscode`, LogOutputChannel, SecretStorage, workspace trust).
-* New **Remote FS** Activity Bar view: manage connections from a form, test them, connection status, inline buttons to add a connection to the workspace or open its local mirror.
+* New **Remote FS 2** Activity Bar view: manage connections from a form, test them, connection status, inline buttons to add a connection to the workspace or open its local mirror.
 * Passwords/passphrases stored in the OS keychain; plain-text passwords are moved there when the connection is edited.
 * SSH host key verification (trust on first use).
 * ssh2 1.x: modern algorithms (rsa-sha2-256/512, ed25519, curve25519), works with OpenSSH 8.8+.

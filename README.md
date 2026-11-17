@@ -1,12 +1,37 @@
-# Remote FS for VS Code
+# Remote FS 2 for VS Code
 
 Work with files on SFTP, FTP and FTPS servers as if they were local: remote folders open in the Explorer, files open in normal editors, and saving writes straight to the server.
 
-> Fork of [liximomo/vscode-remote-fs](https://github.com/liximomo/vscode-remote-fs), updated for current VS Code versions.
+> **This is a maintained fork of [liximomo/vscode-remote-fs](https://github.com/liximomo/vscode-remote-fs)**, which has not been updated since 2019. All credit for the original idea and code goes to its author.
+
+## What's new in this fork
+
+The extension has been largely rewritten on current VS Code APIs. Compared to the original (0.0.16):
+
+**Modernised**
+* Requires VS Code 1.90+; rebuilt on the current extension API (SecretStorage, LogOutputChannel, workspace trust, virtual workspaces).
+* `ssh2` upgraded to 1.x: modern algorithms (rsa-sha2-256/512, ed25519, curve25519), so it connects to OpenSSH 8.8+ servers that the original rejects.
+* FTP client replaced (`jsftp` → `basic-ftp`), with a new `ftps` scheme (explicit and implicit TLS).
+
+**New features**
+* **Remote FS 2 view** in the Activity Bar: create, edit, test and delete connections from a form instead of editing JSON, with live connection status.
+* **Passwords in the OS keychain** instead of `settings.json`; existing plain-text passwords are moved there when you edit the connection.
+* **SSH host key verification** (trust on first use, warning when a key changes).
+* **Local mirror** for AI agents, terminals and git: a remote folder mirrored to a local folder, downloaded on demand and kept in sync both ways, with conflict detection (see [below](#local-mirror-ai-agents-terminal-git)).
+* Automatic reconnection, relative `rootPath` (`~/www`), `~` / `$ENV` expansion in key and agent paths, keyboard-interactive / 2FA prompts.
+
+**Fixes**
+* Connection errors crashing with `TypeError`, rename checking the wrong path, a cancelled password prompt still connecting, wrong FileNotFound/FileExists errors, stale connections for names with upper-case letters, duplicate error notifications, default FTP port shown as 22.
+
+See the [CHANGELOG](CHANGELOG.md) for details.
+
+### Migrating from the original extension
+
+Settings are compatible: existing `remotefs.remote` connections work as they are. **Uninstall the original Remote FS first** — both extensions register the same `sftp://` / `ftp://` file systems and commands and cannot run side by side. Remote FS 2 shows a warning at startup if the original is still enabled.
 
 ## Features
 
-* **Remote FS view** in the Activity Bar: add, edit, duplicate, delete and test connections without touching JSON; inline buttons add a connection to the workspace or open its local mirror.
+* **Remote FS 2 view** in the Activity Bar: add, edit, duplicate, delete and test connections without touching JSON; inline buttons add a connection to the workspace or open its local mirror.
 * SFTP (password, private key, SSH agent, keyboard-interactive / 2FA), FTP and FTPS (explicit or implicit TLS).
 * Passwords and key passphrases are stored in the **OS keychain** (VS Code SecretStorage), never in `settings.json`.
 * SSH **host key verification** (trust on first use, warning when a key changes).
@@ -16,7 +41,7 @@ Work with files on SFTP, FTP and FTPS servers as if they were local: remote fold
 
 ## Getting started
 
-1. Open the **Remote FS** view in the Activity Bar and click **+** (or run `Remote FS: Add Connection`).
+1. Open the **Remote FS 2** view in the Activity Bar and click **+** (or run `Remote FS 2: Add Connection`).
 2. Fill in the form, press **Test Connection**, then **Save**.
 3. Right-click the connection → **Add to Workspace**, **Open in New Window** or **Open Local Mirror** (also available as inline buttons).
 
@@ -67,7 +92,7 @@ Connections live in the `remotefs.remote` setting (user settings by default, wor
 
 `sftp://` / `ftp://` workspace folders exist only inside VS Code: AI agents and anything else that reads the disk or runs shell commands cannot see them. A **local mirror** solves this: the remote folder is mirrored to a normal local folder, **downloaded on demand**, and every change made there — by you, by an AI agent, by a script — is uploaded to the server automatically.
 
-1. Right-click a connection or a folder in the **Remote FS** view (or an `ftp://`/`sftp://` folder in the Explorer) → **Open Local Mirror (for AI agents)**.
+1. Right-click a connection or a folder in the **Remote FS 2** view (or an `ftp://`/`sftp://` folder in the Explorer) → **Open Local Mirror (for AI agents)**.
 2. Choose where to keep it (default `~/RemoteFS/<connection>/<path>`). Only the top folder is downloaded: it takes seconds even for big projects (PrestaShop, WordPress, Magento…).
 3. Open it **in a new window** so it becomes the project root (the working directory of Claude Code and other agents).
 
@@ -95,7 +120,7 @@ How it stays in sync:
 
 ## Commands
 
-All available from the Command Palette under **Remote FS**: Add / Edit / Delete Connection, Add Folder to Workspace, Open in New Window, Open Local Mirror, Download Folder from Server, Sync Local Mirror Now, Resolve Local Mirror Conflicts, Stop Syncing Local Mirror, Test Connection, Disconnect, Disconnect All, Forget Saved Password, Refresh, Edit Connections in settings.json, Show Log.
+All available from the Command Palette under **Remote FS 2**: Add / Edit / Delete Connection, Add Folder to Workspace, Open in New Window, Open Local Mirror, Download Folder from Server, Sync Local Mirror Now, Resolve Local Mirror Conflicts, Stop Syncing Local Mirror, Test Connection, Disconnect, Disconnect All, Forget Saved Password, Refresh, Edit Connections in settings.json, Show Log.
 
 Remote servers cannot notify changes: use **Refresh** to reload folders changed by others.
 

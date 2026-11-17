@@ -34,7 +34,7 @@ export const FETCH_ALL_TRIGGER = '.remotefs-download-all';
 const RESERVED = new Set([PLACEHOLDER_NAME, FETCH_TRIGGER, FETCH_ALL_TRIGGER]);
 
 export const PLACEHOLDER_TEXT = `This folder exists on the server but has not been downloaded yet
-(Remote FS local mirror: folders are downloaded on demand).
+(Remote FS 2 local mirror: folders are downloaded on demand).
 
 - In VS Code: expand the folder in the Explorer, it is downloaded automatically.
 - From a terminal or an AI agent: create an empty file named "${FETCH_TRIGGER}"

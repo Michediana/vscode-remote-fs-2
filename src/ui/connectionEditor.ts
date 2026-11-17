@@ -192,7 +192,7 @@ export class ConnectionEditor {
     private readonly duplicate: boolean
   ) {
     this.original = duplicate ? undefined : conn;
-    const title = conn && !duplicate ? `Remote FS: ${conn.name}` : 'Remote FS: New Connection';
+    const title = conn && !duplicate ? `Remote FS 2: ${conn.name}` : 'Remote FS 2: New Connection';
     this.panel = vscode.window.createWebviewPanel('remotefs.connectionEditor', title, vscode.ViewColumn.Active, {
       enableScripts: true,
       retainContextWhenHidden: true,
@@ -331,10 +331,10 @@ export class ConnectionEditor {
 
     if (this.original && this.original.id !== id) {
       vscode.window.showWarningMessage(
-        `Remote FS: "${this.original.name}" was renamed to "${name}". Workspace folders using ${this.original.scheme}://${this.original.id}/ must be re-added.`
+        `Remote FS 2: "${this.original.name}" was renamed to "${name}". Workspace folders using ${this.original.scheme}://${this.original.id}/ must be re-added.`
       );
     } else {
-      vscode.window.showInformationMessage(`Remote FS: connection "${name}" saved.`);
+      vscode.window.showInformationMessage(`Remote FS 2: connection "${name}" saved.`);
     }
     this.panel.dispose();
   }
@@ -352,7 +352,7 @@ export class ConnectionEditor {
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Remote FS Connection</title>
+<title>Remote FS 2 Connection</title>
 <style nonce="${nonce}">
   body { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); color: var(--vscode-foreground); padding: 0 24px 32px; max-width: 760px; }
   h1 { font-size: 1.5em; font-weight: 600; margin: 20px 0 4px; }

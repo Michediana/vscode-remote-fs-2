@@ -36,7 +36,7 @@ export function createInteraction(context: vscode.ExtensionContext, connName: st
   return {
     async prompt(message, secret) {
       return vscode.window.showInputBox({
-        title: `Remote FS: ${connName}`,
+        title: `Remote FS 2: ${connName}`,
         prompt: message,
         password: secret,
         ignoreFocusOut: true,
@@ -54,7 +54,7 @@ export function createInteraction(context: vscode.ExtensionContext, connName: st
         ? `The host key of ${key} has CHANGED.\n\nPreviously: ${known[key]}\nNow: ${fingerprint}\n\nThis could mean someone is intercepting the connection (man-in-the-middle), or the server was reinstalled. Only continue if you know why the key changed.`
         : `First connection to ${key}.\n\nHost key fingerprint:\n${fingerprint}\n\nVerify it matches the server (ssh-keygen -lf /etc/ssh/ssh_host_*_key.pub) before trusting it.`;
       const answer = await vscode.window.showWarningMessage(
-        changed ? 'Remote FS: host key changed!' : 'Remote FS: unknown host',
+        changed ? 'Remote FS 2: host key changed!' : 'Remote FS 2: unknown host',
         { modal: true, detail },
         trust
       );
@@ -283,7 +283,7 @@ export class ConnectionManager implements vscode.Disposable {
     const edit = 'Edit Connection';
     const log = 'Show Log';
     const answer = await vscode.window.showErrorMessage(
-      `Remote FS: ${conn.name}: ${errorMessage(err)}`,
+      `Remote FS 2: ${conn.name}: ${errorMessage(err)}`,
       edit,
       log
     );
@@ -301,7 +301,7 @@ export class ConnectionManager implements vscode.Disposable {
     }
     const save = 'Save in Keychain';
     const answer = await vscode.window.showInformationMessage(
-      `Remote FS: save the ${kinds.join(' and ')} for "${conn.name}" in the OS keychain?`,
+      `Remote FS 2: save the ${kinds.join(' and ')} for "${conn.name}" in the OS keychain?`,
       save,
       'Not Now'
     );

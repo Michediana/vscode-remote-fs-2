@@ -118,7 +118,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
     private readonly store: ConnectionStore,
     private readonly provider: RemoteFileSystemProvider
   ) {
-    this.statusBar.name = 'Remote FS Mirror';
+    this.statusBar.name = 'Remote FS 2 Mirror';
     this.disposables.push(
       vscode.window.registerFileDecorationProvider(this),
       vscode.workspace.onDidChangeWorkspaceFolders(() => this.refreshActive()),
@@ -326,7 +326,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
         : await vscode.window.withProgress(
             {
               location: vscode.ProgressLocation.Notification,
-              title: opts.title ?? `Remote FS: syncing ${m.conn.name}`,
+              title: opts.title ?? `Remote FS 2: syncing ${m.conn.name}`,
               cancellable: true,
             },
             (progress, token) => run(progress, token)
@@ -336,7 +336,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
         this.lastError = report.errors[0];
         const log = 'Show Log';
         vscode.window
-          .showWarningMessage(`Remote FS: ${report.errors.length} file(s) of ${m.conn.name} could not be synced.`, log)
+          .showWarningMessage(`Remote FS 2: ${report.errors.length} file(s) of ${m.conn.name} could not be synced.`, log)
           .then(a => a === log && logger.show());
       }
       if (report.conflicts.length === 1) {
@@ -348,7 +348,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
         const resolve = 'Resolve…';
         vscode.window
           .showWarningMessage(
-            `Remote FS: ${report.conflicts.length} files of ${m.conn.name} changed both locally and on the server.`,
+            `Remote FS 2: ${report.conflicts.length} files of ${m.conn.name} changed both locally and on the server.`,
             resolve
           )
           .then(a => {
@@ -358,7 +358,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
           });
       } else if (!opts.silent) {
         const n = report.downloaded.length + report.uploaded.length + report.deletedLocal.length + report.deletedRemote.length;
-        vscode.window.setStatusBarMessage(`$(check) Remote FS: ${m.conn.name} in sync (${n} change(s))`, 5000);
+        vscode.window.setStatusBarMessage(`$(check) Remote FS 2: ${m.conn.name} in sync (${n} change(s))`, 5000);
       }
       return report;
     } catch (err) {
@@ -369,7 +369,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
       this.lastError = errorMessage(err);
       logger.error(`Sync of ${m.localRoot} failed: ${errorMessage(err)}`);
       if (!(err instanceof RemoteError && err.code === 'ECANCELED')) {
-        vscode.window.showErrorMessage(`Remote FS: sync of ${m.conn.name} failed: ${errorMessage(err)}`);
+        vscode.window.showErrorMessage(`Remote FS 2: sync of ${m.conn.name} failed: ${errorMessage(err)}`);
       }
       return undefined;
     } finally {
@@ -394,7 +394,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
     const keep = 'Keep on Server';
     const list = rels.slice(0, 15).join('\n') + (rels.length > 15 ? `\n… and ${rels.length - 15} more` : '');
     const answer = await vscode.window.showWarningMessage(
-      `Remote FS: ${rels.length} files were deleted from the local mirror of ${conn.name}. Delete them on the server too?`,
+      `Remote FS 2: ${rels.length} files were deleted from the local mirror of ${conn.name}. Delete them on the server too?`,
       { modal: true, detail: `${list}\n\n"Keep on Server" downloads them again on the next sync.` },
       del,
       keep
@@ -419,7 +419,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
     const keepLocal = kind === 'deleted-locally' ? 'Delete on Server' : 'Upload Local';
     const keepRemote = kind === 'deleted-remotely' ? 'Delete Local' : 'Download Server Copy';
     const answer = await vscode.window.showWarningMessage(
-      `Remote FS: "${rel}" ${CONFLICT_TEXT[kind]} (${m.conn.name}). It was not synced.`,
+      `Remote FS 2: "${rel}" ${CONFLICT_TEXT[kind]} (${m.conn.name}). It was not synced.`,
       ...(kind === 'both-changed' ? [compare] : []),
       keepLocal,
       keepRemote
@@ -432,7 +432,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
       try {
         await m.engine.resolve(rel, answer === keepLocal ? 'local' : 'remote');
       } catch (err) {
-        vscode.window.showErrorMessage(`Remote FS: ${rel}: ${errorMessage(err)}`);
+        vscode.window.showErrorMessage(`Remote FS 2: ${rel}: ${errorMessage(err)}`);
       }
       this.updateStatus();
     }
@@ -449,7 +449,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
       }))
     );
     if (!items.length) {
-      vscode.window.showInformationMessage('Remote FS: no conflicts.');
+      vscode.window.showInformationMessage('Remote FS 2: no conflicts.');
       return;
     }
     const picked = await vscode.window.showQuickPick(items, { placeHolder: 'Select a conflict to resolve' });
@@ -475,16 +475,16 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
     const names = mirrors.map(m => m.conn.name).join(', ');
     if (conflicts) {
       this.statusBar.text = `$(warning) ${conflicts} conflict${conflicts > 1 ? 's' : ''}`;
-      this.statusBar.tooltip = 'Remote FS mirror: click to resolve conflicts';
+      this.statusBar.tooltip = 'Remote FS 2 mirror: click to resolve conflicts';
       this.statusBar.command = 'remotefs.resolveMirrorConflicts';
       this.statusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
     } else {
       this.statusBar.text = busy ? `$(sync~spin) ${names}` : this.lastError ? `$(cloud-offline) ${names}` : `$(cloud) ${names}`;
       this.statusBar.tooltip = busy
-        ? 'Remote FS mirror: syncing…'
+        ? 'Remote FS 2 mirror: syncing…'
         : this.lastError
-          ? `Remote FS mirror: last sync failed (${this.lastError}). Click to sync now.`
-          : 'Remote FS mirror: local changes are uploaded automatically, folders are downloaded when opened. Click to sync now (re-checks the opened folders on the server).';
+          ? `Remote FS 2 mirror: last sync failed (${this.lastError}). Click to sync now.`
+          : 'Remote FS 2 mirror: local changes are uploaded automatically, folders are downloaded when opened. Click to sync now (re-checks the opened folders on the server).';
       this.statusBar.command = 'remotefs.syncMirror';
       this.statusBar.backgroundColor = this.lastError ? new vscode.ThemeColor('statusBarItem.errorBackground') : undefined;
     }
@@ -562,7 +562,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
       return;
     }
     // only the top folder is downloaded now; sub-folders are downloaded when opened
-    const report = await this.syncNow(m, { title: `Remote FS: opening ${conn.name}${remotePath}` });
+    const report = await this.syncNow(m, { title: `Remote FS 2: opening ${conn.name}${remotePath}` });
     if (temporary) {
       // the window that will show the folder runs its own mirror (and watcher)
       this.stop(localRoot);
@@ -640,7 +640,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
     if (mirrors.length <= 1) {
       if (!mirrors.length) {
         vscode.window.showInformationMessage(
-          'Remote FS: no local mirror is open. Use "Open Local Mirror" on a connection in the Remote FS view.'
+          'Remote FS 2: no local mirror is open. Use "Open Local Mirror" on a connection in the Remote FS 2 view.'
         );
       }
       return mirrors[0];
@@ -671,7 +671,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
     }
     try {
       const report = await vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: `Remote FS: downloading ${rel || '/'}`, cancellable: true },
+        { location: vscode.ProgressLocation.Notification, title: `Remote FS 2: downloading ${rel || '/'}`, cancellable: true },
         (progress, token) =>
           m.engine.fetchDir(rel, {
             recursive: picked.recursive,
@@ -682,7 +682,7 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
       this.logReport(m, report);
     } catch (err) {
       if (!(err instanceof CancelledError)) {
-        vscode.window.showErrorMessage(`Remote FS: download of ${rel || '/'} failed: ${errorMessage(err)}`);
+        vscode.window.showErrorMessage(`Remote FS 2: download of ${rel || '/'} failed: ${errorMessage(err)}`);
       }
     }
   }

@@ -8,7 +8,7 @@ let disposed = false;
 
 function get(): vscode.LogOutputChannel | undefined {
   if (!channel && !disposed) {
-    channel = vscode.window.createOutputChannel('Remote FS', { log: true });
+    channel = vscode.window.createOutputChannel('Remote FS 2', { log: true });
   }
   return channel;
 }

@@ -1,17 +1,17 @@
 {
   "name": "remotefs",
-  "displayName": "Remote FS",
+  "displayName": "Remote FS 2",
   "description": "Work with files on SFTP/FTP servers as if they were local, with a connection manager UI.",
   "version": "0.1.0",
-  "publisher": "liximomo",
-  "author": "liximomo <liximomo@gmail.com> (https://liximomo.github.io/)",
+  "publisher": "michediana",
+  "author": "Michele Diana",
   "license": "MIT",
   "engines": {
     "vscode": "^1.90.0"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/liximomo/vscode-remote-fs.git"
+    "url": "https://github.com/Michediana/vscode-remote-fs-2.git"
   },
   "categories": [
     "Other"
@@ -47,7 +47,7 @@
       "activitybar": [
         {
           "id": "remotefs",
-          "title": "Remote FS",
+          "title": "Remote FS 2",
           "icon": "$(server-environment)"
         }
       ]
@@ -58,7 +58,7 @@
           "id": "remotefs.connections",
           "name": "Connections",
           "icon": "$(server-environment)",
-          "contextualTitle": "Remote FS"
+          "contextualTitle": "Remote FS 2"
         }
       ]
     },
@@ -72,116 +72,116 @@
       {
         "command": "remotefs.addFolderToWorkspace",
         "title": "Add Folder to Workspace",
-        "category": "Remote FS",
+        "category": "Remote FS 2",
         "icon": "$(add)"
       },
       {
         "command": "remotefs.openMirror",
         "title": "Open Local Mirror (for AI agents)",
-        "category": "Remote FS",
+        "category": "Remote FS 2",
         "icon": "$(cloud-download)"
       },
       {
         "command": "remotefs.downloadMirrorFolder",
         "title": "Download Folder from Server",
-        "category": "Remote FS",
+        "category": "Remote FS 2",
         "icon": "$(cloud-download)"
       },
       {
         "command": "remotefs.syncMirror",
         "title": "Sync Local Mirror Now",
-        "category": "Remote FS",
+        "category": "Remote FS 2",
         "icon": "$(sync)"
       },
       {
         "command": "remotefs.resolveMirrorConflicts",
         "title": "Resolve Local Mirror Conflicts",
-        "category": "Remote FS"
+        "category": "Remote FS 2"
       },
       {
         "command": "remotefs.unlinkMirror",
         "title": "Stop Syncing Local Mirror",
-        "category": "Remote FS"
+        "category": "Remote FS 2"
       },
       {
         "command": "remotefs.addConnection",
         "title": "Add Connection",
-        "category": "Remote FS",
+        "category": "Remote FS 2",
         "icon": "$(add)"
       },
       {
         "command": "remotefs.editConnection",
         "title": "Edit Connection",
-        "category": "Remote FS",
+        "category": "Remote FS 2",
         "icon": "$(edit)"
       },
       {
         "command": "remotefs.duplicateConnection",
         "title": "Duplicate Connection",
-        "category": "Remote FS"
+        "category": "Remote FS 2"
       },
       {
         "command": "remotefs.deleteConnection",
         "title": "Delete Connection",
-        "category": "Remote FS",
+        "category": "Remote FS 2",
         "icon": "$(trash)"
       },
       {
         "command": "remotefs.openInWorkspace",
         "title": "Add to Workspace",
-        "category": "Remote FS",
+        "category": "Remote FS 2",
         "icon": "$(folder-opened)"
       },
       {
         "command": "remotefs.openInNewWindow",
         "title": "Open in New Window",
-        "category": "Remote FS",
+        "category": "Remote FS 2",
         "icon": "$(empty-window)"
       },
       {
         "command": "remotefs.openInCurrentWindow",
         "title": "Open in Current Window",
-        "category": "Remote FS"
+        "category": "Remote FS 2"
       },
       {
         "command": "remotefs.testConnection",
         "title": "Test Connection",
-        "category": "Remote FS",
+        "category": "Remote FS 2",
         "icon": "$(debug-alt-small)"
       },
       {
         "command": "remotefs.disconnect",
         "title": "Disconnect",
-        "category": "Remote FS",
+        "category": "Remote FS 2",
         "icon": "$(debug-disconnect)"
       },
       {
         "command": "remotefs.disconnectAll",
         "title": "Disconnect All",
-        "category": "Remote FS",
+        "category": "Remote FS 2",
         "icon": "$(debug-disconnect)"
       },
       {
         "command": "remotefs.forgetPassword",
         "title": "Forget Saved Password",
-        "category": "Remote FS"
+        "category": "Remote FS 2"
       },
       {
         "command": "remotefs.refresh",
         "title": "Refresh",
-        "category": "Remote FS",
+        "category": "Remote FS 2",
         "icon": "$(refresh)"
       },
       {
         "command": "remotefs.openSettingsJson",
         "title": "Edit Connections in settings.json",
-        "category": "Remote FS",
+        "category": "Remote FS 2",
         "icon": "$(json)"
       },
       {
         "command": "remotefs.showLog",
         "title": "Show Log",
-        "category": "Remote FS",
+        "category": "Remote FS 2",
         "icon": "$(output)"
       }
     ],
@@ -319,7 +319,7 @@
     },
     "configuration": {
       "type": "object",
-      "title": "Remote FS",
+      "title": "Remote FS 2",
       "properties": {
         "remotefs.rootLabel": {
           "type": "string",
@@ -328,7 +328,7 @@
         },
         "remotefs.remote": {
           "type": "object",
-          "markdownDescription": "Remote connections (key = connection name, used as `<scheme>://<name>/` URI authority). Prefer the **Remote FS** view in the Activity Bar to manage them.",
+          "markdownDescription": "Remote connections (key = connection name, used as `<scheme>://<name>/` URI authority). Prefer the **Remote FS 2** view in the Activity Bar to manage them.",
           "default": {},
           "additionalProperties": {
             "type": "object",

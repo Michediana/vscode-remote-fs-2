@@ -15,11 +15,35 @@ const REMOTE_SUFFIX = ' (remote)';
 /** globalState key: folder added to the workspace whose Explorer must be revealed after a restart. */
 const PENDING_REVEAL = 'remotefs.pendingReveal';
 
+/** The extension this fork replaces: it registers the same file systems and commands. */
+const ORIGINAL_EXTENSION_ID = 'liximomo.remotefs';
+
 function supplant(template: string, props: Record<string, string>) {
   return template.replace(/\$\{([^{}]*)\}/g, (match, key) => props[key] ?? match);
 }
 
+/** Warns when the original Remote FS is enabled too (disabled extensions are not returned by getExtension). */
+async function warnIfOriginalInstalled() {
+  if (!vscode.extensions.getExtension(ORIGINAL_EXTENSION_ID)) {
+    return;
+  }
+  logger.warn(`${ORIGINAL_EXTENSION_ID} is enabled: it conflicts with Remote FS 2`);
+  const show = 'Show Original Extension';
+  const answer = await vscode.window.showWarningMessage(
+    'Remote FS 2 replaces the original Remote FS extension (liximomo.remotefs), which is also enabled. ' +
+      'Both register the sftp:// and ftp:// file systems and the same commands, so they cannot work together. ' +
+      'Uninstall or disable the original, then reload the window. Your connections are kept.',
+    show
+  );
+  if (answer === show) {
+    await vscode.commands.executeCommand('extension.open', ORIGINAL_EXTENSION_ID);
+  }
+}
+
 export function activate(context: vscode.ExtensionContext) {
+  // first, so the warning is shown even if a registration below fails because of the original extension
+  warnIfOriginalInstalled();
+
   const store = new ConnectionStore(context.secrets);
   const editConnection = (conn?: Connection, duplicate = false) =>
     ConnectionEditor.open(context, store, manager, conn, duplicate);
@@ -30,9 +54,14 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(store, manager, provider, view, mirrors, { dispose: () => logger.dispose() });
   for (const scheme of SCHEMES) {
-    context.subscriptions.push(
-      vscode.workspace.registerFileSystemProvider(scheme, provider, { isCaseSensitive: true })
-    );
+    try {
+      context.subscriptions.push(
+        vscode.workspace.registerFileSystemProvider(scheme, provider, { isCaseSensitive: true })
+      );
+    } catch (err) {
+      // another extension (typically liximomo.remotefs) owns the scheme: keep activating so the view still works
+      logger.error(`Cannot register the ${scheme}:// file system: ${errorMessage(err)}`);
+    }
   }
 
   async function pickConnection(node?: Node, placeHolder = 'Select a remote connection'): Promise<Connection | undefined> {
@@ -42,7 +71,7 @@ export function activate(context: vscode.ExtensionContext) {
     const conns = store.list();
     if (!conns.length) {
       const add = 'Add Connection';
-      if ((await vscode.window.showInformationMessage('Remote FS: no connections configured.', add)) === add) {
+      if ((await vscode.window.showInformationMessage('Remote FS 2: no connections configured.', add)) === add) {
         editConnection();
       }
       return undefined;
@@ -85,7 +114,7 @@ export function activate(context: vscode.ExtensionContext) {
     // appending (instead of inserting first) keeps the current first folder and avoids an extension host restart
     if (!vscode.workspace.updateWorkspaceFolders(count, 0, { uri, name })) {
       await context.globalState.update(PENDING_REVEAL, undefined);
-      vscode.window.showErrorMessage('Remote FS: could not add the folder to the workspace.');
+      vscode.window.showErrorMessage('Remote FS 2: could not add the folder to the workspace.');
       return;
     }
     await context.globalState.update(PENDING_REVEAL, undefined);
@@ -149,7 +178,7 @@ export function activate(context: vscode.ExtensionContext) {
         // explorer context menu on an sftp:// / ftp:// folder
         const conn = store.get(target.authority);
         if (!conn) {
-          vscode.window.showErrorMessage(`Remote FS: unknown remote "${target.authority}".`);
+          vscode.window.showErrorMessage(`Remote FS 2: unknown remote "${target.authority}".`);
           return;
         }
         return mirrors.createMirror(conn, target.path || '/');
@@ -206,14 +235,14 @@ export function activate(context: vscode.ExtensionContext) {
       }
       manager.disconnect(conn.id);
       await vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: `Remote FS: connecting to ${conn.name}…` },
+        { location: vscode.ProgressLocation.Notification, title: `Remote FS 2: connecting to ${conn.name}…` },
         async () => {
           const started = Date.now();
           try {
             await manager.getClient(conn, { retryNow: true });
             const entries = await vscode.workspace.fs.readDirectory(rootUri(conn));
             vscode.window.showInformationMessage(
-              `Remote FS: connected to ${conn.name} in ${Date.now() - started} ms (${entries.length} entries in ${conn.rootPath}).`
+              `Remote FS 2: connected to ${conn.name} in ${Date.now() - started} ms (${entries.length} entries in ${conn.rootPath}).`
             );
           } catch (err) {
             // connection failures are already notified by the manager
@@ -243,7 +272,7 @@ export function activate(context: vscode.ExtensionContext) {
       await store.deleteSecret(conn.id, 'password');
       await store.deleteSecret(conn.id, 'passphrase');
       manager.disconnect(conn.id);
-      vscode.window.showInformationMessage(`Remote FS: saved credentials of "${conn.name}" removed.`);
+      vscode.window.showInformationMessage(`Remote FS 2: saved credentials of "${conn.name}" removed.`);
     },
 
     'remotefs.refresh': (node?: Node) => {
@@ -267,10 +296,15 @@ export function activate(context: vscode.ExtensionContext) {
   };
 
   for (const [id, handler] of Object.entries(commands)) {
-    context.subscriptions.push(vscode.commands.registerCommand(id, handler));
+    try {
+      context.subscriptions.push(vscode.commands.registerCommand(id, handler));
+    } catch (err) {
+      // already registered by another extension (typically liximomo.remotefs)
+      logger.error(`Cannot register the command ${id}: ${errorMessage(err)}`);
+    }
   }
 
-  logger.info(`Remote FS activated with ${store.list().length} connection(s)`);
+  logger.info(`Remote FS 2 activated with ${store.list().length} connection(s)`);
 }
 
 export function deactivate() {

@@ -57,7 +57,7 @@ export class RemoteFileSystemProvider implements vscode.FileSystemProvider, vsco
     const conn = this.store.get(connectionId(uri.authority));
     if (!conn) {
       throw vscode.FileSystemError.Unavailable(
-        `Unknown remote "${uri.authority}". Add it from the Remote FS view.`
+        `Unknown remote "${uri.authority}". Add it from the Remote FS 2 view.`
       );
     }
     return conn;
