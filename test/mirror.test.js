@@ -254,6 +254,94 @@ describe('MirrorEngine', () => {
     assert.equal(engine.conflicts.length, 0);
   });
 
+  test("policy 'remote': the server copy wins, the local one is backed up", async () => {
+    makeEngine({ conflictPolicy: 'remote', backupDir: path.join(base, 'backups') });
+    await engine.syncAll();
+    write(remoteRoot, 'index.php', 'server version');
+    write(local, 'index.php', 'local version!!');
+    engine.localChanged(path.join(local, 'index.php'));
+    await engine.idle();
+    assert.equal(read(local, 'index.php'), 'server version');
+    assert.equal(read(remoteRoot, 'index.php'), 'server version');
+    assert.deepEqual(events.conflicts, []);
+    const backups = fs.readdirSync(path.join(base, 'backups'));
+    assert.equal(backups.length, 1);
+    assert.equal(read(path.join(base, 'backups', backups[0]), 'index.php'), 'local version!!');
+
+    // changed on both sides while closed: syncAll downloads the server copy
+    write(remoteRoot, 'index.php', 'server again');
+    write(local, 'index.php', 'local again!!!');
+    const r = await engine.syncAll();
+    assert.deepEqual(r.downloaded, ['index.php']);
+    assert.deepEqual(r.conflicts, []);
+    assert.equal(read(local, 'index.php'), 'server again');
+
+    // local only changes are still uploaded
+    write(local, 'index.php', 'only local');
+    engine.localChanged(path.join(local, 'index.php'));
+    await engine.idle();
+    assert.equal(read(remoteRoot, 'index.php'), 'only local');
+  });
+
+  test("policy 'remote': deletions follow the server", async () => {
+    makeEngine({ conflictPolicy: 'remote', backupDir: path.join(base, 'backups') });
+    await engine.syncAll();
+    await engine.fetchDir('css');
+    // deleted locally, changed on the server: restored
+    write(remoteRoot, 'index.php', 'changed on server');
+    fs.unlinkSync(path.join(local, 'index.php'));
+    // changed locally, deleted on the server: deleted locally
+    write(local, 'css/site.css', 'local change');
+    fs.unlinkSync(path.join(remoteRoot, 'css/site.css'));
+    const r = await engine.syncAll();
+    assert.equal(read(local, 'index.php'), 'changed on server');
+    assert.ok(!exists(local, 'css/site.css'));
+    assert.ok(!exists(remoteRoot, 'css/site.css'));
+    assert.deepEqual(r.conflicts, []);
+  });
+
+  test("policy 'remote': a file present on both sides with different content takes the server copy", async () => {
+    makeEngine({ conflictPolicy: 'remote', backupDir: path.join(base, 'backups') });
+    write(local, 'index.php', 'stale local copy');
+    const r = await engine.syncAll();
+    assert.deepEqual(r.downloaded, ['index.php']);
+    assert.equal(read(local, 'index.php'), '<?php echo 1;');
+  });
+
+  test("policy 'newest': the copy modified last wins", async () => {
+    makeEngine({ conflictPolicy: 'newest', backupDir: path.join(base, 'backups') });
+    await engine.syncAll();
+    await engine.fetchDir('css');
+    const old = new Date(Date.now() - 3600_000);
+    // index.php: local newer -> uploaded
+    write(remoteRoot, 'index.php', 'server older');
+    fs.utimesSync(path.join(remoteRoot, 'index.php'), old, old);
+    write(local, 'index.php', 'local newer');
+    // css/site.css: server newer -> downloaded
+    write(local, 'css/site.css', 'local older');
+    fs.utimesSync(path.join(local, 'css/site.css'), old, old);
+    write(remoteRoot, 'css/site.css', 'server newer');
+    const r = await engine.syncAll();
+    assert.deepEqual(r.uploaded, ['index.php']);
+    assert.deepEqual(r.downloaded, ['css/site.css']);
+    assert.equal(read(remoteRoot, 'index.php'), 'local newer');
+    assert.equal(read(local, 'css/site.css'), 'server newer');
+    assert.deepEqual(r.conflicts, []);
+  });
+
+  test("policy 'newest': a modification beats a deletion", async () => {
+    makeEngine({ conflictPolicy: 'newest', backupDir: path.join(base, 'backups') });
+    await engine.syncAll();
+    await engine.fetchDir('css');
+    write(remoteRoot, 'index.php', 'changed on server');
+    fs.unlinkSync(path.join(local, 'index.php'));
+    write(local, 'css/site.css', 'local change');
+    fs.unlinkSync(path.join(remoteRoot, 'css/site.css'));
+    await engine.syncAll();
+    assert.equal(read(local, 'index.php'), 'changed on server');
+    assert.equal(read(remoteRoot, 'css/site.css'), 'local change');
+  });
+
   test('resolve keeping the server copy', async () => {
     await engine.syncAll();
     write(remoteRoot, 'index.php', 'server version');

@@ -128,13 +128,18 @@ On-demand download:
 * A folder never opened is an empty local folder containing only `_remotefs_not_downloaded.txt`. **Expanding it in the Explorer downloads it** (its files; its sub-folders stay on demand) and the placeholder disappears.
 * Explorer context menu → **Download Folder from Server**: one folder, or a folder with all its sub-folders.
 * **AI agents / terminal**: the placeholder explains it — create `.remotefs-download` in a folder to download it, or `.remotefs-download-all` to download it with all sub-folders (`touch app/.remotefs-download`). The trigger file is removed when done.
-* Files created by an agent inside a folder not downloaded yet are uploaded normally, but never over an existing server file: if one exists with different content it is reported as a conflict.
+* Files created by an agent inside a folder not downloaded yet are uploaded normally, but never blindly over an existing server file: if one exists with different content it is handled as a conflict (see below).
 
 How it stays in sync:
 
 * **Local → server**: changes, new files and deletions in the mirror are uploaded within a fraction of a second (file watcher), including changes made outside VS Code.
 * **Server → local**: the folders already downloaded are re-checked when the mirror is opened, when you click the status bar item / run **Sync Local Mirror Now**, and every `remotefs.mirror.autoSyncInterval` seconds if set. Folders never opened are never listed.
-* **Conflicts**: a file is never overwritten when it changed on both sides (or was deleted on one and changed on the other). You get a notification with **Compare** (diff server ↔ local), **Upload Local** and **Download Server Copy**; the status bar shows pending conflicts.
+* **Conflicts** — a file changed on both sides, or changed on one and deleted on the other — are settled by `remotefs.mirror.conflictResolution`:
+  * `server` (default): **the server always wins**. The local copy is replaced by the server one, or deleted if the file was deleted on the server.
+  * `newest`: **the copy modified last wins**, by date; a modification beats a deletion; when the server does not report a date the server wins. FTP servers often report dates rounded to the minute or in their own time zone: prefer `server` or `ask` if that is your case.
+  * `ask`: nothing is overwritten. You get a notification with **Compare** (diff server ↔ local), **Upload Local** and **Download Server Copy**; the status bar shows pending conflicts.
+
+  A local copy replaced or deleted automatically is first saved in the extension storage (`conflict-backups/<mirror>/<date>/…`; the log shows the exact path). Changes made on one side only are always synced, whatever the setting.
 * **Safety**: deleting 10 or more files at once asks for confirmation before deleting them on the server; a missing local folder is never interpreted as "delete everything"; deleting a folder never downloaded does not delete anything on the server (it comes back as a placeholder).
 * The sync state is kept in VS Code's storage, not in the folder. Placeholder and trigger files are never uploaded. **Stop Syncing Local Mirror** unlinks the folder and keeps the files.
 
@@ -143,11 +148,12 @@ How it stays in sync:
 | `remotefs.mirror.baseFolder` | `~/RemoteFS` | Where new mirrors are created |
 | `remotefs.mirror.exclude` | `.git`, `node_modules`, `.DS_Store`, `Thumbs.db` | Never synced. Names match at any depth (`*.log`), paths with `/` are relative to the mirror root (`wp-content/uploads`) |
 | `remotefs.mirror.maxFileSizeMB` | `50` | Larger files are skipped (`0` = no limit) |
+| `remotefs.mirror.conflictResolution` | `server` | Who wins when a file changed on both sides: `server`, `newest` (by date) or `ask` |
 | `remotefs.mirror.autoSyncInterval` | `0` | Seconds between automatic re-checks of the downloaded folders on the server (`0` = off, minimum 30) |
 
 ## Commands
 
-All available from the Command Palette under **Remote FS 2**: Add / Edit / Delete Connection, Export / Import Connections, Add Folder to Workspace, Open in New Window, Open Local Mirror, Download Folder from Server, Sync Local Mirror Now, Resolve Local Mirror Conflicts, Stop Syncing Local Mirror, Show Connection Activity, Test Connection, Disconnect, Disconnect All, Forget Saved Password, Refresh, Edit Connections in settings.json, Show Log.
+All available from the Command Palette under **Remote FS 2**: Add / Edit / Delete Connection, Export / Import Connections, Add Folder to Workspace, Open in New Window, Open Local Mirror, Download Folder from Server, Sync Local Mirror Now, Resolve Local Mirror Conflicts, Stop Syncing Local Mirror, Show Connection Activity, Open Settings, Test Connection, Disconnect, Disconnect All, Forget Saved Password, Refresh, Edit Connections in settings.json, Show Log.
 
 Remote servers cannot notify changes: use **Refresh** to reload folders changed by others.
 

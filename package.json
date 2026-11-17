@@ -2,7 +2,7 @@
   "name": "remotefs",
   "displayName": "Remote FS 2",
   "description": "Work with files on SFTP/FTP servers as if they were local, with a connection manager UI.",
-  "version": "0.2.1",
+  "version": "0.3.1",
   "publisher": "michediana",
   "author": "Michele Diana",
   "license": "MIT",
@@ -102,6 +102,12 @@
         "command": "remotefs.unlinkMirror",
         "title": "Stop Syncing Local Mirror",
         "category": "Remote FS 2"
+      },
+      {
+        "command": "remotefs.openSettings",
+        "title": "Open Settings",
+        "category": "Remote FS 2",
+        "icon": "$(gear)"
       },
       {
         "command": "remotefs.showActivity",
@@ -205,6 +211,11 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "remotefs.openSettings",
+          "when": "view == remotefs.connections",
+          "group": "navigation@0"
+        },
         {
           "command": "remotefs.addConnection",
           "when": "view == remotefs.connections",
@@ -476,6 +487,21 @@
           "default": 50,
           "minimum": 0,
           "markdownDescription": "Files larger than this are not synced by local mirrors. `0` = no limit."
+        },
+        "remotefs.mirror.conflictResolution": {
+          "type": "string",
+          "enum": [
+            "server",
+            "newest",
+            "ask"
+          ],
+          "enumDescriptions": [
+            "The server copy always wins: the local copy is replaced by the server one (or deleted when the file was deleted on the server).",
+            "The copy modified last wins, by date. A modification beats a deletion. When the server does not report the date, the server copy wins.",
+            "Nothing is overwritten: the conflict is reported, to resolve with Compare / Upload Local / Download Server Copy."
+          ],
+          "default": "server",
+          "markdownDescription": "What a local mirror does with a file changed both locally and on the server (or changed on one side and deleted on the other). Changes made on one side only are always synced. A local copy replaced or deleted automatically is first saved in the extension storage (`conflict-backups`), see the log for the path. With `newest`, mind that FTP servers often report dates rounded to the minute or in their own time zone."
         },
         "remotefs.mirror.autoSyncInterval": {
           "type": "number",

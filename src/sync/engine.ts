@@ -12,8 +12,11 @@
  * Changes are propagated using a manifest that records, for every synced
  * file, the local and remote size/mtime observed right after the last
  * transfer: a side "changed" when its current signature differs from the
- * recorded one. When both sides changed the file is reported as a conflict
- * and never overwritten. Full syncs only re-list the folders already fetched.
+ * recorded one. When both sides changed, `conflictPolicy` decides: the server
+ * copy wins ('remote'), the most recently modified copy wins ('newest'), or the
+ * file is reported as a conflict for the user to resolve ('ask'). A local copy
+ * overwritten or deleted that way is first saved in `backupDir`.
+ * Full syncs only re-list the folders already fetched.
  *
  * Nothing here imports `vscode`, so it can be tested with plain Node.
  */
@@ -81,6 +84,15 @@ export interface RemoteSide {
 
 export type ConflictKind = 'both-changed' | 'deleted-locally' | 'deleted-remotely';
 
+/**
+ * How a file changed on both sides is settled:
+ * - 'remote': the server copy always wins;
+ * - 'newest': the copy modified last wins (a modification beats a deletion; when the server
+ *   date is unknown the server wins);
+ * - 'ask': nothing is overwritten, the conflict is reported to the user.
+ */
+export type ConflictPolicy = 'remote' | 'newest' | 'ask';
+
 export interface Conflict {
   rel: string;
   kind: ConflictKind;
@@ -112,6 +124,13 @@ export interface MirrorOptions {
   debounce?: number;
   /** Deleting this many remote files at once needs confirmRemoteDeletes. */
   deleteConfirmThreshold?: number;
+  /** Default 'ask'. */
+  conflictPolicy?: ConflictPolicy;
+  /**
+   * Where local copies overwritten or deleted by an automatic conflict resolution are
+   * saved (`<backupDir>/<date>/<path>`). Default: `conflict-backups` next to the manifest.
+   */
+  backupDir?: string;
   listener?: MirrorListener;
 }
 
@@ -164,6 +183,24 @@ function parentOf(rel: string) {
   return d === '.' ? '' : d;
 }
 
+/** What happened to one file. */
+type Outcome = SyncAction | 'conflict' | 'unchanged';
+
+function addOutcome(report: SyncReport, rel: string, outcome: Outcome) {
+  const lists: Record<Exclude<Outcome, 'unchanged'>, string[]> = {
+    upload: report.uploaded,
+    download: report.downloaded,
+    'delete-remote': report.deletedRemote,
+    'delete-local': report.deletedLocal,
+    conflict: report.conflicts,
+  };
+  if (outcome === 'unchanged') {
+    report.unchanged++;
+  } else {
+    lists[outcome].push(rel);
+  }
+}
+
 function emptyReport(): SyncReport {
   return { uploaded: [], downloaded: [], deletedRemote: [], deletedLocal: [], conflicts: [], skipped: [], errors: [], unchanged: 0 };
 }
@@ -177,6 +214,8 @@ export class MirrorEngine {
   private readonly debounce: number;
   private readonly deleteThreshold: number;
   private readonly listener: MirrorListener;
+  private readonly policy: ConflictPolicy;
+  private readonly backupDir: string;
 
   private manifest: Manifest;
   private fetched: Set<string>;
@@ -201,6 +240,10 @@ export class MirrorEngine {
     this.debounce = opts.debounce ?? 300;
     this.deleteThreshold = opts.deleteConfirmThreshold ?? 10;
     this.listener = opts.listener ?? {};
+    this.policy = opts.conflictPolicy ?? 'ask';
+    this.backupDir =
+      opts.backupDir ??
+      path.join(path.dirname(this.manifestPath), 'conflict-backups', path.basename(this.manifestPath, '.json'));
     this.manifest = this.loadManifest();
     this.fetched = new Set(this.manifest.dirs);
   }
@@ -401,15 +444,80 @@ export class MirrorEngine {
   }
 
   /** Both sides exist and nothing is recorded: equal content is adopted, different content is a conflict. */
-  private async adoptOrConflict(rel: string, l: Sig, r: Sig) {
+  private async adoptOrConflict(rel: string, l: Sig, r: Sig): Promise<Outcome> {
     if (l.size === r.size) {
       const [a, b] = await Promise.all([fsp.readFile(this.localPath(rel)), this.remote.read(rel)]);
       if (sameBytes(a, b)) {
         this.record(rel, l, r);
-        return;
+        return 'unchanged';
       }
     }
-    this.conflict(rel, 'both-changed');
+    return this.settle(rel, 'both-changed', l, r);
+  }
+
+  /** Which copy wins a conflict under the configured policy (undefined = ask the user). */
+  private winner(kind: ConflictKind, l?: Sig, r?: Sig): 'local' | 'remote' | undefined {
+    switch (this.policy) {
+      case 'remote':
+        return 'remote';
+      case 'newest':
+        if (kind === 'deleted-locally') {
+          return 'remote'; // the deletion time is unknown: the modification wins
+        }
+        if (kind === 'deleted-remotely') {
+          return 'local';
+        }
+        if (!l || !r || !r.mtime) {
+          return 'remote';
+        }
+        return l.mtime > r.mtime ? 'local' : 'remote';
+      default:
+        return undefined;
+    }
+  }
+
+  /** Copies the local file about to be overwritten or deleted to the backup folder. */
+  private async backupLocal(rel: string) {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const target = path.join(this.backupDir, stamp, ...rel.split('/'));
+    try {
+      await fsp.mkdir(path.dirname(target), { recursive: true });
+      await fsp.copyFile(this.localPath(rel), target);
+      this.listener.log?.(`Local copy of ${rel} saved to ${target}`);
+    } catch (err) {
+      this.listener.log?.(`Could not back up ${rel}: ${errorMessage(err)}`);
+    }
+  }
+
+  /**
+   * A file changed on both sides (or changed on one and deleted on the other): applies the
+   * conflict policy, or reports the conflict when the user must decide.
+   */
+  private async settle(rel: string, kind: ConflictKind, l?: Sig, r?: Sig): Promise<Outcome> {
+    const winner = this.winner(kind, l, r);
+    if (!winner) {
+      this.conflict(rel, kind);
+      return 'conflict';
+    }
+    this.listener.log?.(`Conflict (${kind}) on ${rel}: ${winner === 'remote' ? 'server' : 'local'} copy kept (${this.policy})`);
+    this._conflicts.delete(rel);
+    if (winner === 'remote') {
+      if (l) {
+        await this.backupLocal(rel);
+      }
+      if (r) {
+        await this.download(rel, r);
+        return 'download';
+      }
+      await this.deleteLocal(rel);
+      return 'delete-local';
+    }
+    if (l) {
+      await this.upload(rel, l);
+      return 'upload';
+    }
+    await this.deleteRemote(rel);
+    return 'delete-remote';
   }
 
   private tooBig(size: number) {
@@ -492,33 +600,38 @@ export class MirrorEngine {
     }
   }
 
-  private async syncLocalFile(rel: string, l: Sig) {
+  private async syncLocalFile(rel: string, l: Sig): Promise<Outcome> {
     const m = this.manifest.files[rel];
     if (m && sameLocal(m.l, l)) {
-      return; // our own download, or a touch without changes
+      return 'unchanged'; // our own download, or a touch without changes
     }
-    if (this._conflicts.has(rel)) {
-      return; // waiting for the user to resolve it
+    if (this._conflicts.has(rel) && this.policy === 'ask') {
+      return 'conflict'; // waiting for the user to resolve it
     }
     if (this.tooBig(l.size)) {
       this.listener.log?.(`Skipped ${rel}: larger than the size limit`);
-      return;
+      return 'unchanged';
     }
     const r = await this.remote.stat(rel);
     if (r && r.kind === 'dir') {
-      this.conflict(rel, 'both-changed');
-      return;
+      this.conflict(rel, 'both-changed'); // a file here, a folder there: always for the user
+      return 'conflict';
     }
     if (m) {
       if (r && !sameRemote(r, m.r)) {
-        return this.conflict(rel, 'both-changed');
+        return this.settle(rel, 'both-changed', l, r);
       }
-      return this.upload(rel, l);
+      if (!r && this.policy !== 'ask') {
+        return this.settle(rel, 'deleted-remotely', l, undefined);
+      }
+      await this.upload(rel, l);
+      return 'upload';
     }
     if (r) {
       return this.adoptOrConflict(rel, l, r);
     }
-    return this.upload(rel, l);
+    await this.upload(rel, l);
+    return 'upload';
   }
 
   private async localDeleted(rel: string) {
@@ -575,7 +688,7 @@ export class MirrorEngine {
       return;
     }
     if (m && !sameRemote(r, m.r)) {
-      this.conflict(rel, 'deleted-locally');
+      await this.settle(rel, 'deleted-locally', undefined, r);
       return;
     }
     await this.deleteRemote(rel);
@@ -701,7 +814,7 @@ export class MirrorEngine {
       }
     }
 
-    type Plan = { rel: string; action: SyncAction | 'compare' | 'forget' | 'check-local'; r?: Sig };
+    type Plan = { rel: string; action: SyncAction | 'compare' | 'forget' | 'check-local' | 'settle'; r?: Sig; kind?: ConflictKind };
     const plan: Plan[] = [];
     for (const rel of [...paths].sort()) {
       if (this.isExcluded(rel) || (tooBigRemote.has(rel) && localFiles.has(rel))) {
@@ -751,8 +864,7 @@ export class MirrorEngine {
       } else if (l && r) {
         plan.push({ rel, action: 'compare', r });
       } else {
-        this.conflict(rel, l ? 'deleted-remotely' : 'deleted-locally');
-        report.conflicts.push(rel);
+        plan.push({ rel, action: 'settle', r, kind: l ? 'deleted-remotely' : 'deleted-locally' });
       }
     }
 
@@ -798,23 +910,14 @@ export class MirrorEngine {
             this.forget(rel);
             break;
           case 'compare':
-            await this.adoptOrConflict(rel, localFiles.get(rel)!, p.r!);
-            if (this._conflicts.has(rel)) {
-              report.conflicts.push(rel);
-            } else {
-              report.unchanged++;
-            }
+            addOutcome(report, rel, await this.adoptOrConflict(rel, localFiles.get(rel)!, p.r!));
             break;
-          case 'check-local': {
-            const before = this.manifest.files[rel];
-            await this.syncLocalFile(rel, localFiles.get(rel)!);
-            if (this._conflicts.has(rel)) {
-              report.conflicts.push(rel);
-            } else if (this.manifest.files[rel] !== before) {
-              report.uploaded.push(rel);
-            }
+          case 'check-local':
+            addOutcome(report, rel, await this.syncLocalFile(rel, localFiles.get(rel)!));
             break;
-          }
+          case 'settle':
+            addOutcome(report, rel, await this.settle(rel, p.kind!, localFiles.get(rel), p.r));
+            break;
         }
       } catch (err) {
         report.errors.push(`${rel}: ${errorMessage(err)}`);

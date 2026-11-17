@@ -364,6 +364,9 @@ export function activate(context: vscode.ExtensionContext) {
 
     'remotefs.showActivity': () => activityStatus.showActions(),
 
+    'remotefs.openSettings': () =>
+      vscode.commands.executeCommand('workbench.action.openSettings', `@ext:${context.extension.id}`),
+
     'remotefs.openSettingsJson': () =>
       vscode.commands.executeCommand('workbench.action.openSettingsJson', {
         revealSetting: { key: 'remotefs.remote' },

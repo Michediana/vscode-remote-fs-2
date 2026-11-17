@@ -1,3 +1,13 @@
+## 0.3.1 - 2026-11-17
+* Gear button in the title bar of the Remote FS 2 view (and command `Remote FS 2: Open Settings`): opens the settings of the extension.
+
+## 0.3.0 - 2026-11-17
+* Local mirror: new setting `remotefs.mirror.conflictResolution` for files changed both locally and on the server (or changed on one side and deleted on the other):
+  * `server` (**new default**): the server copy always wins;
+  * `newest`: the copy modified last wins, by date (a modification beats a deletion);
+  * `ask`: the previous behaviour, the conflict is reported and nothing is overwritten.
+* A local copy replaced or deleted by an automatic resolution is first saved in `conflict-backups` in the extension storage (path in the log).
+
 ## 0.2.1 - 2026-11-17
 * FTP: servers that close the data connection with a reset instead of a normal close (IIS and others) no longer drop the whole connection after every listing or download. That was why remote folders sometimes stayed empty when a workspace was opened ("read ECONNRESET (data socket)" in the log). The reply of the server still decides whether a transfer succeeded.
 * Remote workspace folders are reloaded again whenever their connection comes back after failed reads (a reload asked too early is postponed instead of skipped).

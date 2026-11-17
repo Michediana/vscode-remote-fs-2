@@ -60,6 +60,7 @@ function mirrorSettings() {
     exclude: cfg.get<string[]>('exclude') ?? [],
     maxFileSizeMB: cfg.get<number>('maxFileSizeMB') ?? 50,
     autoSyncInterval: cfg.get<number>('autoSyncInterval') ?? 0,
+    conflictResolution: cfg.get<string>('conflictResolution') ?? 'server',
   };
 }
 
@@ -239,6 +240,8 @@ export class MirrorManager implements vscode.Disposable, vscode.FileDecorationPr
       manifestPath: this.manifestPath(localRoot),
       exclude: settings.exclude,
       maxFileSize: Math.max(0, settings.maxFileSizeMB) * 1024 * 1024,
+      conflictPolicy:
+        settings.conflictResolution === 'newest' ? 'newest' : settings.conflictResolution === 'ask' ? 'ask' : 'remote',
       listener: {
         log: msg => logger.info(`[mirror ${conn.name}] ${msg}`),
         onAction: (rel, action) => logger.info(`[mirror ${conn.name}] ${action} ${rel}`),
