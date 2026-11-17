@@ -52,6 +52,7 @@ export class ConnectionsView implements vscode.TreeDataProvider<Node>, vscode.Di
     item.id = `connection:${conn.id}`;
     item.description = describeConnection(conn);
     item.contextValue = state.status === 'connected' ? 'remotefs.connection.connected' : 'remotefs.connection.idle';
+    item.command = { command: 'remotefs.openInWorkspace', title: 'Open in Workspace', arguments: [node] };
 
     switch (state.status) {
       case 'connected':

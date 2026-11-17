@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#0C2D6B" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Background squircle -->
+  <rect x="8" y="8" width="240" height="240" rx="60" fill="url(#bg)"/>
+  <rect x="8" y="8" width="240" height="240" rx="60" fill="url(#shine)"/>
+
+  <!-- Speed lines (from the original logo) -->
+  <g stroke="#FFFFFF" stroke-width="10" stroke-linecap="round" fill="none">
+    <path d="M44 170l22-22" stroke-opacity="0.55"/>
+    <path d="M52 204l34-34" stroke-opacity="0.8"/>
+    <path d="M90 214l22-22" stroke-opacity="0.55"/>
+  </g>
+
+  <!-- Airplane -->
+  <g filter="url(#shadow)" transform="translate(150 106) rotate(45) scale(0.92)">
+    <path d="M0 -78C7 -78 11 -70 11 -60L11 -14L72 22L72 38L11 22L11 46L32 62L32 72L0 64L-32 72L-32 62L-11 46L-11 22L-72 38L-72 22L-11 -14L-11 -60C-11 -70 -7 -78 0 -78Z"
+          fill="#FFFFFF" stroke="#FFFFFF" stroke-width="6" stroke-linejoin="round"/>
+  </g>
+</svg>

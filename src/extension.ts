@@ -12,6 +12,8 @@ import { ConnectionsView, Node, rootUri } from './ui/connectionsView';
 const DEFAULT_ROOT_LABEL = '${label}';
 /** Appended to the default label, so remote folders are not confused with local mirrors. */
 const REMOTE_SUFFIX = ' (remote)';
+/** globalState key: folder added to the workspace whose Explorer must be revealed after a restart. */
+const PENDING_REVEAL = 'remotefs.pendingReveal';
 
 function supplant(template: string, props: Record<string, string>) {
   return template.replace(/\$\{([^{}]*)\}/g, (match, key) => props[key] ?? match);
@@ -77,11 +79,32 @@ export function activate(context: vscode.ExtensionContext) {
       name += REMOTE_SUFFIX;
     }
     const count = vscode.workspace.workspaceFolders?.length ?? 0;
+    // if the window has no folder (or switches from a single folder to a multi-root workspace) VS Code
+    // restarts the extension host and this code is killed: remember to reveal the Explorer on the next activation
+    await context.globalState.update(PENDING_REVEAL, { uri: uri.toString(), at: Date.now() });
     // appending (instead of inserting first) keeps the current first folder and avoids an extension host restart
     if (!vscode.workspace.updateWorkspaceFolders(count, 0, { uri, name })) {
+      await context.globalState.update(PENDING_REVEAL, undefined);
       vscode.window.showErrorMessage('Remote FS: could not add the folder to the workspace.');
+      return;
+    }
+    await context.globalState.update(PENDING_REVEAL, undefined);
+    await vscode.commands.executeCommand('workbench.view.explorer');
+  }
+
+  /** Completes an addToWorkspace() interrupted by an extension host restart. */
+  async function revealPendingFolder() {
+    const pending = context.globalState.get<{ uri: string; at: number }>(PENDING_REVEAL);
+    if (!pending) {
+      return;
+    }
+    await context.globalState.update(PENDING_REVEAL, undefined);
+    const added = (vscode.workspace.workspaceFolders ?? []).some(f => f.uri.toString() === pending.uri);
+    if (added && Date.now() - pending.at < 60_000) {
+      await vscode.commands.executeCommand('workbench.view.explorer');
     }
   }
+  revealPendingFolder();
 
   /** Removes the workspace folders that browse the given connections (local mirrors are kept). */
   function removeFromWorkspace(connIds: string[]) {
