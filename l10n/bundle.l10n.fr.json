@@ -235,9 +235,5 @@
   "Refresh Remote Folders": "Actualiser les dossiers distants",
   "Connections": "Connexions",
   "Disconnect {0}": "Déconnecter {0}",
-  "Connect {0}": "Connecter {0}",
-  "Search Connections": "Rechercher des connexions",
-  "Filter by name, host, user or path": "Filtrer par nom, hôte, utilisateur ou chemin",
-  "No connections match \"{0}\"": "Aucune connexion ne correspond à « {0} »",
-  "Filter: \"{0}\" ({1} of {2})": "Filtre : « {0} » ({1} sur {2})"
+  "Connect {0}": "Connecter {0}"
 }
