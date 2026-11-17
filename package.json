@@ -2,7 +2,7 @@
   "name": "remotefs",
   "displayName": "Remote FS 2",
   "description": "Work with files on SFTP/FTP servers as if they were local, with a connection manager UI.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "michediana",
   "author": "Michele Diana",
   "license": "MIT",
@@ -102,6 +102,12 @@
         "command": "remotefs.unlinkMirror",
         "title": "Stop Syncing Local Mirror",
         "category": "Remote FS 2"
+      },
+      {
+        "command": "remotefs.showActivity",
+        "title": "Show Connection Activity",
+        "category": "Remote FS 2",
+        "icon": "$(pulse)"
       },
       {
         "command": "remotefs.addConnection",

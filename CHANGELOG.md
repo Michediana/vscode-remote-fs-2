@@ -1,3 +1,8 @@
+## 0.2.0 - 2026-11-17
+* Remote workspace folders load by themselves when a workspace is opened: the connections are made at startup and the folders are re-read as soon as a connection is restored after failed reads (no more manual Refresh).
+* FTP: a file inside a missing folder (e.g. `.vscode/settings.json`, probed by VS Code on startup) is no longer looked up by listing that folder, which made some servers drop the connection over and over. The reason of an unexpected disconnection is now written to the log.
+* New status bar item with the activity of the remote connections: connecting / connected / busy (operations in progress) / error; the tooltip shows data downloaded and uploaded, operations, last operation and last error; click for Refresh, Show Log, Connect/Disconnect.
+
 ## 0.1.0 - 2026-11-17
 * First release of the **Remote FS 2** fork (publisher `michediana`), based on liximomo/vscode-remote-fs 0.0.16.
 * Requires VS Code 1.90+. Rewritten on current APIs (`@types/vscode`, LogOutputChannel, SecretStorage, workspace trust).

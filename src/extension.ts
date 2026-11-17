@@ -1,11 +1,13 @@
 import { posix } from 'path';
 import * as vscode from 'vscode';
+import { ActivityTracker } from './activity';
 import { Connection, ConnectionStore, describeConnection } from './config';
 import { ConnectionManager } from './connectionManager';
 import { RemoteFileSystemProvider } from './fileSystemProvider';
 import logger from './logger';
 import { MirrorManager } from './mirror';
 import { SCHEMES, errorMessage } from './remote';
+import { ActivityStatus } from './ui/activityStatus';
 import { ConnectionEditor } from './ui/connectionEditor';
 import { ConnectionsView, Node, rootUri } from './ui/connectionsView';
 import { exportConnections, importConnections } from './ui/transferCommands';
@@ -49,11 +51,15 @@ export function activate(context: vscode.ExtensionContext) {
   const editConnection = (conn?: Connection, duplicate = false) =>
     ConnectionEditor.open(context, store, manager, conn, duplicate);
   const manager = new ConnectionManager(context, store, id => editConnection(store.get(id)));
-  const provider = new RemoteFileSystemProvider(store, manager);
+  const activity = new ActivityTracker();
+  const provider = new RemoteFileSystemProvider(store, manager, activity);
   const view = new ConnectionsView(store, manager);
   const mirrors = new MirrorManager(context, store, provider);
+  const activityStatus = new ActivityStatus(store, manager, activity);
 
-  context.subscriptions.push(store, manager, provider, view, mirrors, { dispose: () => logger.dispose() });
+  context.subscriptions.push(store, manager, activity, provider, view, mirrors, activityStatus, {
+    dispose: () => logger.dispose(),
+  });
   for (const scheme of SCHEMES) {
     try {
       context.subscriptions.push(
@@ -135,6 +141,56 @@ export function activate(context: vscode.ExtensionContext) {
     }
   }
   revealPendingFolder();
+
+  /** The remote workspace folders served by a connection. */
+  function remoteFolders(connId?: string) {
+    return (vscode.workspace.workspaceFolders ?? []).filter(
+      f =>
+        (SCHEMES as readonly string[]).includes(f.uri.scheme) &&
+        (connId === undefined || f.uri.authority.toLowerCase() === connId)
+    );
+  }
+
+  // When a workspace is opened VS Code reads its remote folders once, while the extension is
+  // still starting or the connection is being made (password prompt, server dropping the first
+  // attempts…); a failed read leaves the folder empty until a manual refresh. Re-read the
+  // folders of a connection as soon as it is up again after such failures.
+  const lastAutoRefresh = new Map<string, number>();
+  context.subscriptions.push(
+    manager.onDidChangeState(id => {
+      if (manager.getState(id).status !== 'connected' || !provider.takeUnavailable(id)) {
+        return;
+      }
+      activity.clearError(id);
+      const folders = remoteFolders(id);
+      // at most every 10 s, so a connection that keeps dropping cannot cause a refresh loop
+      if (!folders.length || Date.now() - (lastAutoRefresh.get(id) ?? 0) < 10_000) {
+        return;
+      }
+      lastAutoRefresh.set(id, Date.now());
+      logger.info(`Reloading the workspace folders of ${id} after the connection was restored`);
+      setTimeout(() => folders.forEach(f => provider.refresh(f.uri)), 300);
+    })
+  );
+
+  /** Connects the remote workspace folders as soon as the window opens, then reloads them. */
+  async function connectWorkspaceFolders() {
+    const ids = new Set(remoteFolders().map(f => f.uri.authority.toLowerCase()));
+    for (const id of ids) {
+      const conn = store.get(id);
+      if (!conn) {
+        logger.warn(`The workspace contains a folder of the unknown remote "${id}"`);
+        continue;
+      }
+      try {
+        await manager.getClient(conn);
+      } catch {
+        continue; // notified by the manager
+      }
+      remoteFolders(id).forEach(f => provider.refresh(f.uri));
+    }
+  }
+  connectWorkspaceFolders();
 
   /** Removes the workspace folders that browse the given connections (local mirrors are kept). */
   function removeFromWorkspace(connIds: string[]) {
@@ -284,12 +340,12 @@ export function activate(context: vscode.ExtensionContext) {
       if (node) {
         provider.refresh(node.uri);
       }
-      for (const folder of vscode.workspace.workspaceFolders ?? []) {
-        if ((SCHEMES as readonly string[]).includes(folder.uri.scheme)) {
-          provider.refresh(folder.uri);
-        }
+      for (const folder of remoteFolders()) {
+        provider.refresh(folder.uri);
       }
     },
+
+    'remotefs.showActivity': () => activityStatus.showActions(),
 
     'remotefs.openSettingsJson': () =>
       vscode.commands.executeCommand('workbench.action.openSettingsJson', {

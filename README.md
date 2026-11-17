@@ -18,6 +18,8 @@ The extension has been largely rewritten on current VS Code APIs. Compared to th
 * **Passwords in the OS keychain** instead of `settings.json`; existing plain-text passwords are moved there when you edit the connection.
 * **SSH host key verification** (trust on first use, warning when a key changes).
 * **Local mirror** for AI agents, terminals and git: a remote folder mirrored to a local folder, downloaded on demand and kept in sync both ways, with conflict detection (see [below](#local-mirror-ai-agents-terminal-git)).
+* **Activity in the status bar**: connection state, operations in progress, data transferred, last operation and last error.
+* Remote workspace folders load by themselves when a saved workspace is opened (no manual Refresh needed).
 * Automatic reconnection, relative `rootPath` (`~/www`), `~` / `$ENV` expansion in key and agent paths, keyboard-interactive / 2FA prompts.
 
 **Fixes**
@@ -36,7 +38,8 @@ Settings are compatible: existing `remotefs.remote` connections work as they are
 * Passwords and key passphrases are stored in the **OS keychain** (VS Code SecretStorage), never in `settings.json`.
 * SSH **host key verification** (trust on first use, warning when a key changes).
 * Several remotes at once in a multi-root workspace; open a remote in a new window.
-* Automatic reconnection when a connection drops.
+* Automatic reconnection when a connection drops; remote workspace folders are connected and loaded as soon as a workspace opens.
+* **Status bar activity** of the remote connections (see [below](#status-bar)).
 * **Local mirror** of a remote folder, kept in sync both ways, so that **AI agents (Claude Code, Copilot, Cursor, Codex…)**, terminals and command-line tools can work on the files.
 
 ## Getting started
@@ -46,6 +49,20 @@ Settings are compatible: existing `remotefs.remote` connections work as they are
 3. Right-click the connection → **Add to Workspace**, **Open in New Window** or **Open Local Mirror** (also available as inline buttons).
 
 Status icons in the view: green = connected, spinning = connecting, red = last attempt failed (hover for the error).
+
+## Status bar
+
+When the workspace contains a remote folder, or a connection is open, a status bar item shows what the connections are doing:
+
+| Item | Meaning |
+|:--|:--|
+| spinning circle + name | connecting |
+| spinning arrows + `name · 3` | 3 operations in progress (listing, reading, writing, mirror sync…) |
+| cloud + name | connected, idle |
+| crossed cloud + name, red background | the connection failed |
+| cloud + `2/3` | several connections: connected / total |
+
+Hover it for the details of each connection: state, data downloaded and uploaded, number of operations, last operation with its time and last error. Click it for **Refresh Remote Folders**, **Show Log** and **Connect / Disconnect** (also `Remote FS 2: Show Connection Activity`). The local mirror has its own item (sync state and conflicts).
 
 ## Configuration
 
@@ -130,7 +147,7 @@ How it stays in sync:
 
 ## Commands
 
-All available from the Command Palette under **Remote FS 2**: Add / Edit / Delete Connection, Export / Import Connections, Add Folder to Workspace, Open in New Window, Open Local Mirror, Download Folder from Server, Sync Local Mirror Now, Resolve Local Mirror Conflicts, Stop Syncing Local Mirror, Test Connection, Disconnect, Disconnect All, Forget Saved Password, Refresh, Edit Connections in settings.json, Show Log.
+All available from the Command Palette under **Remote FS 2**: Add / Edit / Delete Connection, Export / Import Connections, Add Folder to Workspace, Open in New Window, Open Local Mirror, Download Folder from Server, Sync Local Mirror Now, Resolve Local Mirror Conflicts, Stop Syncing Local Mirror, Show Connection Activity, Test Connection, Disconnect, Disconnect All, Forget Saved Password, Refresh, Edit Connections in settings.json, Show Log.
 
 Remote servers cannot notify changes: use **Refresh** to reload folders changed by others.
 

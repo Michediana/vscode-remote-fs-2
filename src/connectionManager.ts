@@ -255,7 +255,12 @@ export class ConnectionManager implements vscode.Disposable {
       entry.fingerprint = configFingerprint(conn);
       client.onClose(() => {
         if (entry.client === client) {
-          logger.info(`Connection to ${conn.name} closed`);
+          const reason = client.closeReason;
+          if (reason) {
+            logger.warn(`Connection to ${conn.name} closed: ${reason}`);
+          } else {
+            logger.info(`Connection to ${conn.name} closed`);
+          }
           entry.client = undefined;
           this.setState(conn.id, entry, { status: 'idle' });
         }
@@ -327,6 +332,11 @@ export class ConnectionManager implements vscode.Disposable {
     entry.client?.close();
     entry.pending?.then(c => c.close(), () => undefined);
     this._onDidChangeState.fire(id);
+  }
+
+  /** Ids of the connections the manager knows about (connecting, connected or failed). */
+  knownIds() {
+    return [...this.entries.keys()];
   }
 
   disconnectAll() {

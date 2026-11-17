@@ -74,6 +74,12 @@ export class FtpClient implements RemoteClient {
   private readonly queue = new SerialQueue();
   private readonly listings = new Map<string, { at: number; entries: Promise<RemoteDirEntry[]> }>();
   private readonly closeListeners: Array<() => void> = [];
+  /**
+   * Directories seen to exist (listed, or found as entries of a listing). `stat` checks the
+   * parent exists before listing it: some servers drop the whole control connection when
+   * asked to LIST a missing directory (VS Code stats `.vscode/settings.json` & co. on startup).
+   */
+  private readonly knownDirs = new Set<string>(['/']);
   private keepAlive?: NodeJS.Timeout;
   private _closed = false;
 
@@ -121,6 +127,12 @@ export class FtpClient implements RemoteClient {
     }
   }
 
+  /** Why the connection ended, when it was not closed on purpose. */
+  get closeReason(): string | undefined {
+    const err = (this.ftp.ftp as unknown as { _closingError?: Error })._closingError;
+    return err && !/^User closed client/.test(err.message) ? err.message : undefined;
+  }
+
   close() {
     this.ftp.close();
     this.checkClosed();
@@ -159,6 +171,17 @@ export class FtpClient implements RemoteClient {
     }
   }
 
+  /** Forgets that `path` and everything below it are directories (after a delete or rename). */
+  private forgetDirs(path: string) {
+    const prefix = path.endsWith('/') ? path : path + '/';
+    for (const d of this.knownDirs) {
+      if (d === path || d.startsWith(prefix)) {
+        this.knownDirs.delete(d);
+      }
+    }
+    this.knownDirs.add('/');
+  }
+
   private async resolveSymlink(path: string): Promise<EntryKind> {
     // `cd` succeeds only for directories; all paths we use are absolute, so
     // changing the working directory has no side effect on later commands.
@@ -187,6 +210,12 @@ export class FtpClient implements RemoteClient {
           mtime: mtimeOf(info),
         });
       }
+      this.knownDirs.add(dir);
+      for (const e of out) {
+        if (e.kind === 'dir') {
+          this.knownDirs.add(posix.join(dir, e.name));
+        }
+      }
       return out;
     }, dir);
   }
@@ -214,7 +243,15 @@ export class FtpClient implements RemoteClient {
       return { kind: 'dir', isSymlink: false, size: 0, mtime: 0 };
     }
     // FTP has no portable "stat": look the entry up in its parent's listing.
-    const entries = await this.cachedList(posix.dirname(path));
+    const parent = posix.dirname(path);
+    if (!this.knownDirs.has(parent)) {
+      // make sure the parent exists before listing it (see knownDirs); recursion checks the ancestors
+      const st = await this.stat(parent);
+      if (st.kind !== 'dir') {
+        throw new RemoteError('ENOENT', `${path}: no such file or directory`);
+      }
+    }
+    const entries = await this.cachedList(parent);
     const name = posix.basename(path);
     const entry = entries.find(e => e.name === name);
     if (!entry) {
@@ -272,6 +309,7 @@ export class FtpClient implements RemoteClient {
 
   async rmdir(path: string): Promise<void> {
     this.invalidate(path);
+    this.forgetDirs(path);
     await this.run(() => this.ftp.removeEmptyDir(path), path);
     this.invalidate(path);
   }
@@ -284,6 +322,8 @@ export class FtpClient implements RemoteClient {
 
   async rename(from: string, to: string, overwrite: boolean): Promise<void> {
     this.invalidate(from, to);
+    this.forgetDirs(from);
+    this.forgetDirs(to);
     if (overwrite && (await this.exists(to))) {
       await this.unlink(to);
     }

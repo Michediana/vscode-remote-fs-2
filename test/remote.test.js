@@ -227,3 +227,40 @@ describe('sftp specifics', () => {
     });
   });
 });
+
+describe('ftp specifics', () => {
+  let root, server;
+  before(async () => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'remotefs-ftp2-'));
+    fs.mkdirSync(path.join(root, 'a', 'b'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'a', 'b', 'f.txt'), 'x');
+    server = await startFtpServer(root);
+  });
+  after(async () => {
+    await server.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  // VS Code stats .vscode/settings.json & co. when a workspace opens: some servers drop the
+  // control connection when asked to LIST a missing directory, so it must never be listed.
+  test('stat inside a missing folder does not list it', async () => {
+    const client = await openClient(
+      { scheme: 'ftp', host: '127.0.0.1', port: server.port, username: 'user', password: 'secret', connectTimeout: 5000 },
+      noPrompt
+    );
+    const listed = [];
+    const list = client.ftp.list.bind(client.ftp);
+    client.ftp.list = dir => (listed.push(dir), list(dir));
+    try {
+      await assert.rejects(client.stat('/.vscode/settings.json'), { code: 'ENOENT' });
+      await assert.rejects(client.stat('/.vscode/deep/tasks.json'), { code: 'ENOENT' });
+      assert.ok(!listed.some(d => d.startsWith('/.vscode')), `listed ${listed.join(', ')}`);
+      assert.equal((await client.stat('/a/b/f.txt')).kind, 'file');
+      await assert.rejects(client.stat('/a/b/f.txt/inside'), { code: 'ENOENT' });
+      assert.ok(!listed.includes('/a/b/f.txt'), `listed ${listed.join(', ')}`);
+      assert.equal(client.closed, false);
+    } finally {
+      client.close();
+    }
+  });
+});

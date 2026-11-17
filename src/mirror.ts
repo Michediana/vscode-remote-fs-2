@@ -73,8 +73,8 @@ function sanitize(segment: string) {
 
 function remoteSide(provider: RemoteFileSystemProvider, conn: Connection, base: string): RemoteSide {
   const uri = (rel: string) => rootUri(conn, posix.join(base, '/', rel));
-  const run = <T>(rel: string, op: Parameters<RemoteFileSystemProvider['withClient']>[1]) =>
-    provider.withClient(uri(rel), op) as Promise<T>;
+  const run = <T>(rel: string, op: Parameters<RemoteFileSystemProvider['withClient']>[1], label = 'mirror', up = 0) =>
+    provider.withClient(uri(rel), op, label, up) as Promise<T>;
   return {
     stat: rel =>
       run(rel, async (c, p) => {
@@ -87,9 +87,9 @@ function remoteSide(provider: RemoteFileSystemProvider, conn: Connection, base: 
           throw err;
         }
       }),
-    readdir: rel => run(rel, (c, p) => c.readdir(p)),
-    read: rel => run(rel, (c, p) => c.readFile(p)),
-    write: (rel, data) => run(rel, (c, p) => c.writeFile(p, data)),
+    readdir: rel => run(rel, (c, p) => c.readdir(p), 'mirror list'),
+    read: rel => run(rel, (c, p) => c.readFile(p), 'mirror download'),
+    write: (rel, data) => run(rel, (c, p) => c.writeFile(p, data), 'mirror upload', data.byteLength),
     mkdir: rel =>
       run(rel, async (c, p) => {
         try {

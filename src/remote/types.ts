@@ -35,6 +35,8 @@ export interface RemoteClient {
   /** Resolves a path relative to the login directory into an absolute one. */
   realpath(path: string): Promise<string>;
   close(): void;
+  /** Why the connection ended unexpectedly, when known. */
+  readonly closeReason?: string;
   /** Registers a listener invoked once when the connection ends. */
   onClose(listener: () => void): void;
 }
