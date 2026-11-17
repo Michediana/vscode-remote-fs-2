@@ -66,8 +66,7 @@
     "viewsWelcome": [
       {
         "view": "remotefs.connections",
-        "contents": "%view.connections.welcome%",
-        "when": "!remotefs.connectionsFiltered"
+        "contents": "%view.connections.welcome%"
       }
     ],
     "commands": [
@@ -187,12 +186,6 @@
         "icon": "$(search)"
       },
       {
-        "command": "remotefs.clearSearch",
-        "title": "%command.clearSearch%",
-        "category": "Remote FS 2",
-        "icon": "$(clear-all)"
-      },
-      {
         "command": "remotefs.refresh",
         "title": "%command.refresh%",
         "category": "Remote FS 2",
@@ -227,12 +220,7 @@
       "view/title": [
         {
           "command": "remotefs.searchConnections",
-          "when": "view == remotefs.connections && !remotefs.connectionsFiltered",
-          "group": "navigation@-1"
-        },
-        {
-          "command": "remotefs.clearSearch",
-          "when": "view == remotefs.connections && remotefs.connectionsFiltered",
+          "when": "view == remotefs.connections",
           "group": "navigation@-1"
         },
         {
@@ -354,10 +342,6 @@
         }
       ],
       "commandPalette": [
-        {
-          "command": "remotefs.clearSearch",
-          "when": "remotefs.connectionsFiltered"
-        },
         {
           "command": "remotefs.openInWorkspace",
           "when": "false"

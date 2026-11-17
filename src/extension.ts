@@ -233,6 +233,9 @@ export function activate(context: vscode.ExtensionContext) {
     connIds.forEach(id => manager.disconnect(id));
   }
 
+  let searchFilterMode = false;
+  const findModeSetting = () => vscode.workspace.getConfiguration('workbench.list').get<string>('defaultFindMode');
+
   const commands: Record<string, (...args: any[]) => unknown> = {
     'remotefs.addFolderToWorkspace': () => addToWorkspace(),
     'remotefs.openInWorkspace': (node?: Node) => addToWorkspace(node),
@@ -387,10 +390,26 @@ export function activate(context: vscode.ExtensionContext) {
 
     'remotefs.showLog': () => logger.show(),
 
-    'remotefs.searchConnections': () => view.promptFilter(),
-
-    'remotefs.clearSearch': () => view.setFilter(''),
+    // native find widget of the tree, switched to filter mode: hides the connections that do not match
+    'remotefs.searchConnections': async () => {
+      await vscode.commands.executeCommand('remotefs.connections.focus');
+      if (!searchFilterMode && findModeSetting() !== 'filter') {
+        // there is no API to set the mode of one tree: toggle it once, the tree keeps it while it lives
+        await vscode.commands.executeCommand('list.toggleFindMode');
+      }
+      searchFilterMode = true;
+      await vscode.commands.executeCommand('list.find');
+    },
   };
+
+  // a change of the setting resets the find mode of every tree to the setting
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration(e => {
+      if (e.affectsConfiguration('workbench.list.defaultFindMode')) {
+        searchFilterMode = false;
+      }
+    })
+  );
 
   for (const [id, handler] of Object.entries(commands)) {
     try {
